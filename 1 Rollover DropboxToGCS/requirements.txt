@@ -1,0 +1,6 @@
+flask
+dropbox
+google-cloud-storage
+gunicorn
+google-cloud-secret-manager
+
