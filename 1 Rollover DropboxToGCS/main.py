@@ -1,11 +1,19 @@
 import os
 import hmac
 import hashlib
-import threading
 import json
 import dropbox
+import gpxpy
+import fitdecode
+import pandas
+import numpy
+import lxml
+from fit2gpx import Converter
+from dropbox.exceptions import AuthError #not necessary, but hide fake error warning
+from dropbox.files import FileMetadata #add types, instead dropbox.files.FileMetadata, use only Fi.
 from flask import Flask, request, Response
 from google.cloud import storage, secretmanager
+import subprocess
 
 # --- Configuration ---
 # GCP Project ID and Secret Names from Secret Manager
@@ -25,23 +33,21 @@ if not GCS_BUCKET_NAME:
     raise ValueError("GCS_BUCKET_NAME not installs")
 CURSOR_BLOB = "tmp/dropbox_cursor.json"
 
-
 # --- Initialize Clients ---
 app = Flask(__name__)
 storage_client = storage.Client()
+bucket = storage_client.bucket(GCS_BUCKET_NAME)
 secret_client = secretmanager.SecretManagerServiceClient()
-
+conv = Converter()
 
 # GCS cursor
 # Result is True or False
 def load_cursor():
 # 'loads' convert JSON into Dict, then reads key 'cursor'
 # use '.get' instead 'loads(content)["cursor"]' because
-# - if cursor doesnt exist, code is stops (KeyError)
+# - if cursor doesn't exist, code is stops (KeyError)
 # - must use try\except, instead simple check
-# - in situation, where doesnt existing cursor is normal
-    client = storage.Client()
-    bucket = client.bucket(GCS_BUCKET_NAME)
+# - in situation, where doesn't existing cursor is normal
     blob = bucket.blob(CURSOR_BLOB)
     if blob.exists():
         content = blob.download_as_text()
@@ -51,8 +57,6 @@ def load_cursor():
         return None
 
 def save_cursor(cursor):
-    client = storage.Client()
-    bucket = client.bucket(GCS_BUCKET_NAME)
     blob = bucket.blob(CURSOR_BLOB)
     data = json.dumps({"cursor": cursor})
     blob.upload_from_string(data, content_type="application/json")
@@ -61,8 +65,6 @@ def save_cursor(cursor):
 def upload_to_gcs(path, content):
 # This function also rewrite as:
 # storage.Client().bucket(GCS_BUCKET_NAME).blob(path).upload_from_string(content)
-    client = storage.Client()
-    bucket = client.bucket(GCS_BUCKET_NAME)
     blob = bucket.blob(path)
     blob.upload_from_string(content)
     print(f"File {path} loaded")
@@ -84,15 +86,15 @@ def sync_dropbox():
     print("Dropbox-client is created, checking authorization...")
     try:
         dbx.users_get_current_account()
-        print("Authorization in Dropbox succesful")
-    except dropbox.exceptions.AuthError as e:
+        print("Authorization in Dropbox successful")
+    except AuthError as e:
         print("Authorization in Dropbox FAILED", e)
         raise
 
     cursor = load_cursor()
     print(f"Cursor: {cursor}")
 
-# If 'cursor' it any valid value, it is 'True' and start runing 'result=..'
+# If 'cursor' it any valid value, it is 'True' and start running 'result=.'
 # 'result' returns next data
 #	ListFolderResult(
 #	entries=[FileMetadata, FolderMetadata, DeletedMetadata],
@@ -110,25 +112,55 @@ def sync_dropbox():
 
     synced_files = 0
 
-# 'files_download' return Tuple with two elements (dropbox.files.FileMetadata, requests.models.Responce),
+# 'files_download' return Tuple with two elements (FileMetadata, requests.models.Response),
 # therefore we need UNPACKING it and creating two
 # variables for handling: metadata and res. But in this code metadata not used.
 # If by mistake, write "res = dbx...", that creating tuple without unpacking,
 # and in next steps must use 'res[1]'
     for entry in result.entries:
-        if isinstance(entry, dropbox.files.FileMetadata):
+        if isinstance(entry, FileMetadata):
             print(f"Downloaded from Dropbox: {entry.path_lower}")
             metadata, res = dbx.files_download(entry.path_lower)
+            #Create path's
+            filename = os.path.basename(entry.path_lower)
+            local_fit = f"/tmp/{filename}"
             gcs_path = f"dropbox_sync{entry.path_lower}"
-            # using method .content from responce lib
+            # Save locally for java app (for loading from file, instead load from bites)
+            # file save in local_fit var
+            with open(local_fit, "wb") as f:
+                f.write(res.content)
+
+            # using method .content from response lib. Loading from bytes
             upload_to_gcs(gcs_path, res.content)
             print(f"Uploaded in GCS: {gcs_path}")
             synced_files += 1
 
-    save_cursor(result.cursor)
+        # Convert fit to csv
+            local_csv = f"/tmp/{filename.replace('.fit', '.csv')}"
+            convert_fit_to_csv(local_fit, local_csv)
+            # Load .csv in own directory
+            csv_gcs_path = f"encodedcsv/{os.path.basename(local_csv)}"
+            bucket.blob(csv_gcs_path).upload_from_filename(local_csv)
+            print(f"Uploaded CSV in GCS: {csv_gcs_path}")
+
+            # Convert fit to gpx
+            local_gpx = f"/tmp/{filename.replace('.fit', '.gpx')}"
+            conv.fit_to_gpx(local_fit, local_gpx)
+            gpx_gcs_path = f"gpx/{os.path.basename(local_gpx)}"
+            bucket.blob(gpx_gcs_path).upload_from_filename(local_gpx)
+            print(f"Uploaded GPX in GCS: {gpx_gcs_path}")
+
+        save_cursor(result.cursor)
+
+
     print(f"Cursor saved: {result.cursor}")
 
     return f"Synced {synced_files} files"
+
+def convert_fit_to_csv(local_fit, local_csv):
+    subprocess.run(["java", "-jar", "FitCSVTool.jar", "-b", local_fit, local_csv], check=True)
+
+
 
 # Fetches a secret from Google Secret Manager
 def get_secret(secret_id, version_id="latest"):
@@ -159,7 +191,7 @@ def webhook():
             print(f"Received signature: {signature}")
 
             print("Invalid signature. Request ignored.")
-            return ('', 403)
+            return '', 403
 
         #if 'list_folder' in request.json:
         #    print("Received a change notification")
@@ -167,11 +199,12 @@ def webhook():
         sync_dropbox()
         print("Webhook received. A file change was detected")
 
-        return ('', 200)
+        return '', 200
 
-    return ('', 405)  # Method Not Allowed
+    return '', 405  # Method Not Allowed
 
 
 if __name__ == "__main__":
     # Cloud Run set PORT as it want. For testing code locally, already will be using 8080
+    # Also, if you use guinocorn, it ignores this row
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
