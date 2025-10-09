@@ -8,6 +8,7 @@ import fitdecode
 import pandas
 import numpy
 import lxml
+import re
 from fit2gpx import Converter
 from dropbox.exceptions import AuthError #not necessary, but hide fake error warning
 from dropbox.files import FileMetadata #add types, instead dropbox.files.FileMetadata, use only Fi.
@@ -126,7 +127,7 @@ def sync_dropbox():
             local_fit = f"/tmp/{filename}"
             gcs_path = f"dropbox_sync{entry.path_lower}"
             # Save locally for java app (for loading from file, instead load from bites)
-            # file save in local_fit var
+            # file save in local_fit var, path set in UPPER variable, local_fit
             with open(local_fit, "wb") as f:
                 f.write(res.content)
 
@@ -135,18 +136,36 @@ def sync_dropbox():
             print(f"Uploaded in GCS: {gcs_path}")
             synced_files += 1
 
-        # Convert fit to csv
-            local_csv = f"/tmp/{filename.replace('.fit', '.csv')}"
-            convert_fit_to_csv(local_fit, local_csv)
+        # ---1 phase--- FIT >>> CSV
+            local_csv = f"/tmp/{filename.replace('.fit', '.csv')}" # tmp/bad.csv
+            convert_fit_to_csv(local_fit, local_csv, mode='decode')
             # Load .csv in own directory
-            csv_gcs_path = f"encodedcsv/{os.path.basename(local_csv)}"
+            csv_gcs_path = f"encodedcsv/{os.path.basename(local_csv)}"   # encodedcsv/bad.csv
             bucket.blob(csv_gcs_path).upload_from_filename(local_csv)
             print(f"Uploaded CSV in GCS: {csv_gcs_path}")
 
-            # Convert fit to gpx
-            local_gpx = f"/tmp/{filename.replace('.fit', '.gpx')}"
+        # Clean csv(fit) from gps problems
+            name, ext = os.path.splitext(os.path.basename(local_csv))
+            local_csv_fix = f"/tmp/{name}_fixed{ext}"     # tmp/csv/
+            clean_gps(local_csv, local_csv_fix)
+            fit_csv_gcs_path = f"fit_fix/{os.path.basename(local_csv_fix)}"
+            bucket.blob(fit_csv_gcs_path).upload_from_filename(local_csv_fix)
+            print(f"Fixed: {fit_csv_gcs_path}")
+
+        # 3 phase CSV >>> FIT
+            name1 = os.path.splitext(os.path.basename(local_csv))[0]
+            local_fix_fit = f"/tmp/{name1}_ffixed.fit"
+
+            convert_fit_to_csv(local_csv_fix, local_fix_fit, mode='encode')
+            fix_fit_gcs_path = f"fix_fit/{os.path.basename(local_fix_fit)}"
+            bucket.blob(fix_fit_gcs_path).upload_from_filename(local_fix_fit)
+            print(f"Uploaded fixed version in: {fix_fit_gcs_path}")
+
+
+        # Convert fit to gpx
+            local_gpx = f"/tmp/{filename.replace('.fit', '.gpx')}"   # tmp/___.gpx
             conv.fit_to_gpx(local_fit, local_gpx)
-            gpx_gcs_path = f"gpx/{os.path.basename(local_gpx)}"
+            gpx_gcs_path = f"gpx/{os.path.basename(local_gpx)}"                 # gpx/___.gpx
             bucket.blob(gpx_gcs_path).upload_from_filename(local_gpx)
             print(f"Uploaded GPX in GCS: {gpx_gcs_path}")
 
@@ -157,10 +176,32 @@ def sync_dropbox():
 
     return f"Synced {synced_files} files"
 
-def convert_fit_to_csv(local_fit, local_csv):
-    subprocess.run(["java", "-jar", "FitCSVTool.jar", "-b", local_fit, local_csv], check=True)
+def convert_fit_to_csv(input_path, output_path, mode):
+    flag = "-b" if mode == "decode" else "-c"
+    subprocess.run(["java", "-jar", "FitCSVTool.jar", flag, input_path, output_path], check=True)
 
+# clean csv(fit) from gps problems
+def clean_gps(input_path, output_path):
+    # Finding lat, long and gps_accuracy
+    pattern = re.compile(
+       r'position_lat,"(-?\d+)",semicircles,position_long,"-?\d+",semicircles,'
+    )
 
+    with open(input_path, 'r', encoding='utf-8') as infile:
+        lines = infile.readlines()
+
+    cleaned_lines = []
+    for line in lines:
+        if line.startswith("Data"):
+            match = pattern.search(line)
+            if match:
+                lat_value = int(match.group(1))
+                if lat_value < 0:
+                    line = line.replace(match.group(0), "")  # Видаляємо фрагмент
+        cleaned_lines.append(line)
+
+    with open(output_path, 'w', encoding='utf-8') as outfile:
+        outfile.writelines(cleaned_lines)
 
 # Fetches a secret from Google Secret Manager
 def get_secret(secret_id, version_id="latest"):
