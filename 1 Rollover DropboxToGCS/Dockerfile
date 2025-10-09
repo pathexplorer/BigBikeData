@@ -14,7 +14,7 @@ ENV PYTHONUNBUFFERED=True
 ENV APP_HOME=/app
 ENV PORT=8080
 WORKDIR $APP_HOME
-COPY requirements.txt FitCSVTool.jar main.py ./
+COPY checking_env.py requirements.txt FitCSVTool.jar main.py ./
 
 # Install production dependencies.
 RUN pip install --no-cache-dir -r requirements.txt
