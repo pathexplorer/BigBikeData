@@ -2,7 +2,7 @@ import requests
 from dotenv import load_dotenv
 import os
 
-load_dotenv(dotenv_path="other/keys.env")
+load_dotenv(dotenv_path="../other/keys.env")
 
 nAPP_KEY = os.environ["DROPBOX_APP_KEY"]
 nAPP_SECRET = os.environ["DROPBOX_APP_SECRET"]

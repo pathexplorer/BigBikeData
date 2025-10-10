@@ -16,6 +16,9 @@ from flask import Flask, request, Response
 from google.cloud import storage, secretmanager
 import subprocess
 from checking_env import checking_env
+import warnings
+from strava.auth import update_strava_token_if_needed
+from strava.upload import upload_fit_to_strava
 
 # ---- Configuration ----
 # GCP Project ID and Secret Names from Secret Manager
@@ -36,7 +39,8 @@ storage_client = storage.Client()
 bucket = storage_client.bucket(GCS_BUCKET_NAME)
 secret_client = secretmanager.SecretManagerServiceClient()
 conv = Converter()
-
+# for ignore warn fron fit 2 gpx
+warnings.filterwarnings("ignore", category=UserWarning)
 # ---- GCS cursor ----
 # Result is True or False
 def load_cursor():
@@ -148,11 +152,14 @@ def sync_dropbox():
         # 3 phase CSV >>> FIT
             name1 = os.path.splitext(os.path.basename(local_csv))[0]
             local_fix_fit = f"/tmp/{name1}_ffixed.fit"
-
             convert_fit_to_csv(local_csv_fix, local_fix_fit, mode='encode')
             fix_fit_gcs_path = f"fit_clean/{os.path.basename(local_fix_fit)}"
             bucket.blob(fix_fit_gcs_path).upload_from_filename(local_fix_fit)
             print(f"Uploaded fixed version in:{fix_fit_gcs_path}")
+        # 4 phase fixed FIT to strava
+            access_token = update_strava_token_if_needed()
+            result1 = upload_fit_to_strava(access_token, local_fix_fit)
+            print(f"Uploaded to Strava: {result1}")
 
         # Convert fit to gpx
             local_gpx = f"/tmp/{filename.replace('.fit', '.gpx')}"
@@ -190,6 +197,8 @@ def clean_gps(input_path, output_path):
                 lat_value = int(match.group(1))
                 if lat_value < 0:
                     line = line.replace(match.group(0), "")  # Видаляємо фрагмент
+            #for records before 01/10/2025
+            line = re.sub(r'serial_number,"SN\.(\d+)"', r'serial_number,"\1"', line)
         cleaned_lines.append(line)
 
     with open(output_path, 'w', encoding='utf-8') as outfile:
@@ -231,10 +240,7 @@ def webhook():
         print("Webhook received. A file change was detected")
 
         return '', 200
-
     return '', 405  # Method Not Allowed
-
-
 if __name__ == "__main__":
     # Cloud Run set PORT as it want. For testing code locally, already will be using 8080
     # Also, if you use guinocorn, it ignores this row
