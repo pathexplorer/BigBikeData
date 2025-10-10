@@ -7,7 +7,7 @@ def upload_fit_to_strava(access_token: str, fit_file_path: str) -> dict:
     data = {
         "data_type": "fit",
         "name": "Auto-uploaded FIT",
-        "description": "Uploaded via pipeline"
+        "description": "Wuahahah! Uploaded via pipeline"
     }
 
     response = requests.post(url, headers=headers, files=files, data=data)
