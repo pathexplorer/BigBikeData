@@ -29,12 +29,12 @@ def update_secret(secret_id, new_value):
 def update_strava_token_if_needed():
     client_id = os.getenv("STRAVA_CLIENT_ID")
     client_secret = os.getenv("STRAVA_CLIENT_SECRET")
-    refresh_token = get_secret("strava_refresh_token")
-    expires_at = int(get_secret("strava_expires_at"))  # stored as Unix timestamp
+    refresh_token = get_secret("strava-refresh-token")
+    expires_at = int(get_secret("strava-expires-at"))  # stored as Unix timestamp
 
     now = int(time.time())
     if now < expires_at - 300:  # 5 minutes buffer
-        return get_secret("strava_access_token")
+        return get_secret("strava-access-token")
 
     # Token is expiring, updating
     url = "https://www.strava.com/oauth/token"
@@ -50,11 +50,11 @@ def update_strava_token_if_needed():
     token_data = response.json()
 
     # Saving access_token and expires_at
-    update_secret("strava_access_token", token_data["access_token"])
-    update_secret("strava_expires_at", str(token_data["expires_at"]))
+    update_secret("strava-access-token", token_data["access_token"])
+    update_secret("strava-expires-at", str(token_data["expires_at"]))
 
     # Saving refresh_token only if it changes
     if token_data["refresh_token"] != refresh_token:
-        update_secret("strava_refresh_token", token_data["refresh_token"])
+        update_secret("strava-refresh-token", token_data["refresh_token"])
 
     return token_data["access_token"]
