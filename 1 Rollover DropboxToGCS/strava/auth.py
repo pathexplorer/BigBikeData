@@ -7,16 +7,16 @@ import time
 import requests
 from google.cloud import secretmanager
 
+project_id = os.getenv("GCP_PROJECT_ID")
+
 def get_secret(secret_id):
     client = secretmanager.SecretManagerServiceClient()
-    project_id = os.getenv("GCP_PROJECT_ID")
     name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
     response = client.access_secret_version(request={"name": name})
     return response.payload.data.decode("UTF-8")
 
 def update_secret(secret_id, new_value):
     client = secretmanager.SecretManagerServiceClient()
-    project_id = os.getenv("GCP_PROJECT_ID")
     parent = f"projects/{project_id}/secrets/{secret_id}"
 
     client.add_secret_version(
@@ -27,8 +27,8 @@ def update_secret(secret_id, new_value):
     )
 
 def update_strava_token_if_needed():
-    client_id = os.getenv("STRAVA_CLIENT_ID")
-    client_secret = os.getenv("STRAVA_CLIENT_SECRET")
+    client_id = get_secret("strava-client-id")
+    client_secret = get_secret("strava-client-secret")
     refresh_token = get_secret("strava-refresh-token")
     expires_at = int(get_secret("strava-expires-at"))  # stored as Unix timestamp
 

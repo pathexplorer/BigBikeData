@@ -18,19 +18,22 @@ import subprocess
 from checking_env import checking_env
 import warnings
 from strava.auth import update_strava_token_if_needed
-from strava.upload import upload_fit_to_strava
+from strava.upload import upload_fit_to_strava, poll_upload_status, update_gear
+from datetime import datetime, timezone # for Data Labeling
 
 # ---- Configuration ----
 # GCP Project ID and Secret Names from Secret Manager
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
+GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")  # Set as environment variable
+# Dropbox and GCS configuration
 SECRET_DROPBOX_APP_SECRET = "dropbox-app-secret"
 SECRET_DROPBOX_REFRESH_TOKEN = "dropbox-refresh-token"
-# Dropbox and GCS configuration
-DROPBOX_APP_KEY = os.environ.get("DROPBOX_APP_KEY")  # Set as environment variable
+DROPBOX_APP_KEY = "dropbox-app-key"
 DROPBOX_WATCHED_FOLDER = "/apps/wahoofitness" # The folder to monitor (case-insensitive)
-GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")  # Set as environment variable
+
 CURSOR_BLOB = "tmp/dropbox_cursor.json"
 
+# Formal test for existing secrets
 checking_env()
 
 # ---- Initialize Clients ----
@@ -39,7 +42,7 @@ storage_client = storage.Client()
 bucket = storage_client.bucket(GCS_BUCKET_NAME)
 secret_client = secretmanager.SecretManagerServiceClient()
 conv = Converter()
-# for ignore warn fron fit 2 gpx
+# for ignore warn from fit 2 gpx
 warnings.filterwarnings("ignore", category=UserWarning)
 # ---- GCS cursor ----
 # Result is True or False
@@ -75,9 +78,10 @@ def sync_dropbox():
     print("Sync Dropbox → GCS starts")
 
     dbx_app_secret = get_secret(SECRET_DROPBOX_APP_SECRET)
+    dbx_app_key = get_secret(DROPBOX_APP_KEY)
     dbx_refresh_token = get_secret(SECRET_DROPBOX_REFRESH_TOKEN)
     dbx = dropbox.Dropbox(
-        app_key=DROPBOX_APP_KEY,
+        app_key=dbx_app_key,
         app_secret=dbx_app_secret,
         oauth2_refresh_token=dbx_refresh_token
     )
@@ -132,6 +136,13 @@ def sync_dropbox():
             upload_to_gcs(gcs_path, res.content)
             print(f"Uploaded in GCS:{gcs_path}")
             synced_files += 1
+        # extracting some data from original .FIT for Data Labeling
+            # For ony files from Wahoo Roam, which name in format: 'YYYY-MM-DD-HHMMSS-elemnt... .fit'
+            timestamp_part = filename.split("-elemnt")[0]
+            dt = datetime.strptime(timestamp_part, "%Y-%m-%d-%H%M%S")
+            formatted = dt.strftime("%Y-%m-%d %H:%M:%S") # extracted timestamp of start activity
+            now = datetime.now(timezone.utc)
+            now_str = now.strftime("%Y-%m-%d %H:%M:%S") # current timestamp
 
         # ---1 phase--- FIT >>> CSV
             local_csv = f"/tmp/{filename.replace('.fit', '.csv')}"
@@ -144,7 +155,7 @@ def sync_dropbox():
         # Clean csv(fit) from gps problems
             name, ext = os.path.splitext(os.path.basename(local_csv))
             local_csv_fix = f"/tmp/{name}_fixed{ext}"
-            clean_gps(local_csv, local_csv_fix)
+            bike_model = clean_gps(local_csv, local_csv_fix)
             fit_csv_gcs_path = f"csv_clean/{os.path.basename(local_csv_fix)}"
             bucket.blob(fit_csv_gcs_path).upload_from_filename(local_csv_fix)
             print(f"Fixed:{fit_csv_gcs_path}")
@@ -157,13 +168,20 @@ def sync_dropbox():
             bucket.blob(fix_fit_gcs_path).upload_from_filename(local_fix_fit)
             print(f"Uploaded fixed version in:{fix_fit_gcs_path}")
         # 4 phase fixed FIT to strava
-            access_token = update_strava_token_if_needed()
-            result1 = upload_fit_to_strava(access_token, local_fix_fit)
-            print(f"Uploaded to Strava: {result1}")
+            current_mode = get_secret("current-mode")
+            if current_mode == "prod":
+                access_token = update_strava_token_if_needed()
+                upload_id = upload_fit_to_strava(access_token, local_fix_fit)
+                activity_id = poll_upload_status(upload_id, access_token)
+                updated = update_gear(activity_id, access_token, bike_model)
+
+                print(f"Uploaded to Strava: {updated}")
+            elif current_mode == "testing":
+                print(f"OFF function Strava uploading")
 
         # Convert fit to gpx
             local_gpx = f"/tmp/{filename.replace('.fit', '.gpx')}"
-            conv.fit_to_gpx(local_fit, local_gpx)
+            conv.fit_to_gpx(local_fix_fit, local_gpx)
             gpx_gcs_path = f"gpx/{os.path.basename(local_gpx)}"
             bucket.blob(gpx_gcs_path).upload_from_filename(local_gpx)
             print(f"Uploaded GPX in GCS:{gpx_gcs_path}")
@@ -179,6 +197,16 @@ def convert_fit_to_csv(input_path, output_path, mode):
     flag = "-b" if mode == "decode" else "-c"
     subprocess.run(["java", "-jar", "FitCSVTool.jar", flag, input_path, output_path], check=True)
 
+def label_bike(lines):
+    mtb = ['ant_device_number,"4315"', 'ant_device_number,"33509"']
+    gravel = ['ant_device_number,"2230"', 'ant_device_number,"9560"']
+    for line in lines:
+        if any(code in line for code in mtb):
+            return 'b7647614'
+        if any(code in line for code in gravel):
+            return 'b8850168'
+    return ''
+
 # clean csv(fit) from gps problems
 def clean_gps(input_path, output_path):
     # Finding lat, long and gps_accuracy
@@ -188,7 +216,7 @@ def clean_gps(input_path, output_path):
 
     with open(input_path, 'r', encoding='utf-8') as infile:
         lines = infile.readlines()
-
+    bike_model = label_bike(lines)
     cleaned_lines = []
     for line in lines:
         if line.startswith("Data"):
@@ -203,7 +231,7 @@ def clean_gps(input_path, output_path):
 
     with open(output_path, 'w', encoding='utf-8') as outfile:
         outfile.writelines(cleaned_lines)
-
+    return bike_model
 # Fetches a secret from Google Secret Manager
 def get_secret(secret_id, version_id="latest"):
     name = f"projects/{GCP_PROJECT_ID}/secrets/{secret_id}/versions/{version_id}"
