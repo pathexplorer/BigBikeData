@@ -2,22 +2,25 @@ import os
 from google.cloud import secretmanager
 import logging
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO) # hide useless warnings about local running
 
-#--- Local part STARTS --- testing only
+#--- Local part STARTS --- local testing only
 #from dotenv import load_dotenv
 #load_dotenv(dotenv_path="other/keys.env")
 #os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "other/a.json"
 #--- Local part ENDS ---
 
-SECRET_DROPBOX_APP_SECRET = "dropbox-app-secret"
-SECRET_DROPBOX_REFRESH_TOKEN = "dropbox-refresh-token"
+list_of_secrets = ["dropbox-app-secret",
+                   "dropbox-app-key",
+                   "dropbox-refresh-token",
+                   "strava-refresh-token",
+                   "strava-expires-at",
+                   "strava-access-token"]
 
 def checking_env():
     required_vars = [
-        "DROPBOX_APP_KEY",
         "GCP_PROJECT_ID",
-        "GCS_BUCKET_NAME"
+        "GCS_BUCKET_NAME",
     ]
 
     for var in required_vars:
@@ -30,7 +33,7 @@ def checking_env():
     project_id = os.environ.get("GCP_PROJECT_ID")
     secret_client = secretmanager.SecretManagerServiceClient()
 
-    for secret_env_var in [SECRET_DROPBOX_APP_SECRET, SECRET_DROPBOX_REFRESH_TOKEN]:
+    for secret_env_var in list_of_secrets:
         secret_id = secret_env_var
         secret_path = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
         try:
