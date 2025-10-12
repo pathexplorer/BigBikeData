@@ -3,10 +3,11 @@ dropbox
 google-cloud-storage
 gunicorn
 google-cloud-secret-manager
-git+https://github.com/pathexplorer/fit2gpx.git
+git+https://github.com/pathexplorer/fit2gpx.git@first
 gpxpy
 numpy
 pandas
 lxml
 fitdecode
 python-dotenv
+datetime

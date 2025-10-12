@@ -5,8 +5,11 @@ Base setting for first run
 from flask import Flask, redirect, request, jsonify
 import requests
 import os
+
+
 from dotenv import load_dotenv
 load_dotenv(dotenv_path="../other/keys.env")
+
 
 app = Flask(__name__)
 
@@ -23,8 +26,9 @@ def home():
         f"&response_type=code"
         f"&redirect_uri={REDIRECT_URI}"
         f"&approval_prompt=force"
-        f"&scope=activity:write"
+        f"&scope=activity:write,activity:read_all"
     )
+
     return f'<a href="{auth_url}">Authorize with Strava</a>'
 
 @app.route("/exchange_token")
