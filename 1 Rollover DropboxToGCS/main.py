@@ -19,6 +19,7 @@ from checking_env import checking_env
 import warnings
 from strava.auth import update_strava_token_if_needed
 from strava.upload import upload_fit_to_strava, poll_upload_status, update_gear
+from heatmap_gpx.append_function import append_gpx_via_compose
 from datetime import datetime, timezone # for Data Labeling
 
 # ---- Configuration ----
@@ -180,11 +181,14 @@ def sync_dropbox():
                 print(f"OFF function Strava uploading")
 
         # Convert fit to gpx
+
             local_gpx = f"/tmp/{filename.replace('.fit', '.gpx')}"
             conv.fit_to_gpx(local_fix_fit, local_gpx)
             gpx_gcs_path = f"gpx/{os.path.basename(local_gpx)}"
             bucket.blob(gpx_gcs_path).upload_from_filename(local_gpx)
             print(f"Uploaded GPX in GCS:{gpx_gcs_path}")
+        # Create heatmap by bike
+            append_gpx_via_compose(local_gpx, bike_model)
 
         save_cursor(result.cursor)
 
