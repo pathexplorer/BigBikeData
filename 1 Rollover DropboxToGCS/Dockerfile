@@ -1,14 +1,13 @@
 # Use the official lightweight Python image.
 FROM python:3.10
 
-
 # istall Java
-#RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y --no-install-recommends \
-#    openjdk-21-jre-headless \
-#    && apt-get clean \
-#    && rm -rf /var/lib/apt/lists/*
+RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y --no-install-recommends \
+    openjdk-21-jre-headless \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 # Checking Java
-#RUN java -version
+RUN java -version
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=True
