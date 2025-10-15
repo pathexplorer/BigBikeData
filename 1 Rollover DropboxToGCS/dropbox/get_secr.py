@@ -7,6 +7,7 @@ import requests
 from flask import Flask, redirect, request, jsonify
 from dotenv import load_dotenv
 from google.cloud import secretmanager
+from google.api_core.exceptions import AlreadyExists
 
 load_dotenv(dotenv_path="../other/keys.env")
 app = Flask(__name__)
@@ -14,6 +15,7 @@ app = Flask(__name__)
 DROPBOX_CLIENT_ID = os.getenv("DROPBOX_APP_KEY")
 DROPBOX_CLIENT_SECRET = os.getenv("SECRET_DROPBOX_APP_SECRET")
 DROPBOX_REDIRECT_URI = os.getenv("DROPBOX_REDIRECT_URI")
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "../other/a.json"
 
 def store_refresh_token(secret_id: str, refresh_token: str, project_id: str):
     client = secretmanager.SecretManagerServiceClient()
@@ -30,10 +32,8 @@ def store_refresh_token(secret_id: str, refresh_token: str, project_id: str):
                 },
             }
         )
-    except Exception as e:
-        if "AlreadyExists" not in str(e):
-            raise
-
+    except AlreadyExists:
+        print(f"Secret '{secret_id}' already exists. Skipping creation.")
     # Add new version
     client.add_secret_version(
         request={
@@ -52,12 +52,14 @@ def index():
         f"&redirect_uri={DROPBOX_REDIRECT_URI}"
         f"&token_access_type=offline"
     )
+    print("Route / completed")
     return redirect(auth_url)
 
 
 @app.route("/oauth/callback")
 def oauth_callback():
     code = request.args.get("code")
+    print(code) #DELETE
     if not code:
         return "No code provided", 400
 
@@ -71,6 +73,7 @@ def oauth_callback():
     }
 
     response = requests.post(token_url, data=data)
+    print(response)
     if response.status_code != 200:
         return f"Token exchange failed: {response.text}", 500
 
