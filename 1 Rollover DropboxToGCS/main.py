@@ -1,3 +1,4 @@
+import config
 import os
 import hmac
 import hashlib
@@ -16,84 +17,38 @@ from dropbox.files import FileMetadata #add types, instead dropbox.files.FileMet
 from flask import Flask, request, Response, jsonify
 import logging
 from google.cloud import storage, secretmanager
+from google.cloud.exceptions import NotFound
 import subprocess
 from checking_env import checking_env
 import warnings
 from strava.auth import update_strava_token_if_needed
 from strava.upload import upload_fit_to_strava, poll_upload_status, update_gear
 from heatmap_gpx.append_function import append_gpx_via_compose
-#from datetime import datetime, timezone # for Data Labeling
+from datetime import datetime, timezone # for Data Labeling
 
-# ---- Configuration ----
-# GCP Project ID and Secret Names from Secret Manager
-GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
-GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")  # Set as environment variable
 
-# Dropbox and GCS configuration
-SECRET_DROPBOX_APP_SECRET = "dropbox-app-secret"
-SECRET_DROPBOX_REFRESH_TOKEN = "dropbox-refresh-token"
-DROPBOX_APP_KEY = "dropbox-app-key"
-DROPBOX_WATCHED_FOLDER = "/apps/wahoofitness" # The folder to monitor (case-insensitive)
-
-#load heatmap, app route "upload to dropbox"
-DROPBOX_HEATMAP = "heatmap"
-GSC_HEATMAP_PATH = "heatmap"
-HEATMAP_FILES = ['mtb.gpx','gravel.gpx']
-CHUNK_SIZE = 8 * 1024 * 1024  # 8MB
-
-CURSOR_BLOB = "tmp/dropbox_cursor.json"
-
-# Formal test for existing secrets
 # TODO it is testing feature or it neet ON permanently? Or simple disable message?
-#checking_env() temporary OFF
+#checking_env()  # Formal test for existing secrets temporary OFF
 
 # ---- Initialize Clients ----
 app = Flask(__name__)
 client = storage.Client()
-bucket = client.bucket(GCS_BUCKET_NAME)
+bucket = client.bucket(config.GCS_BUCKET_NAME)
 secret_client = secretmanager.SecretManagerServiceClient()
 conv = Converter()
-# for ignore warn from fit 2 gpx
-warnings.filterwarnings("ignore", category=UserWarning)
-# ---- GCS cursor ----
-# Result is True or False
-def load_cursor():
-# 'loads' convert JSON into Dict, then reads key 'cursor'
-# use '.get' instead 'loads(content)["cursor"]' because
-# - if cursor doesn't exist, code is stops (KeyError)
-# - must use try\except, instead simple check
-# - in situation, where doesn't existing cursor is normal
-    blob = bucket.blob(CURSOR_BLOB)
-    if blob.exists():
-        content = blob.download_as_text()
-        return json.loads(content).get("cursor")
-    else:
-        print("Cursor doesn't exist. Creating...")
-        return None
+warnings.filterwarnings("ignore", category=UserWarning) # for ignore warn from fit 2 gpx
 
-def save_cursor(cursor):
-    blob = bucket.blob(CURSOR_BLOB)
-    data = json.dumps({"cursor": cursor})
-    blob.upload_from_string(data, content_type="application/json")
-
-# ---- Loading file in GCS ----
-def upload_to_gcs(path, content):
-# This function also rewrite as:
-# storage.Client().bucket(GCS_BUCKET_NAME).blob(path).upload_from_string(content)
-    blob = bucket.blob(path)
-    blob.upload_from_string(content)
-    print(f"File {path} loaded")
-
+# ------- AUTHORIZATION -----------
 # Fetches a secret from Google Secret Manager
 def get_secret(secret_id, version_id="latest"):
-    name = f"projects/{GCP_PROJECT_ID}/secrets/{secret_id}/versions/{version_id}"
+    name = f"projects/{config.GCP_PROJECT_ID}/secrets/{secret_id}/versions/{version_id}"
     response = secret_client.access_secret_version(request={"name": name})
     return response.payload.data.decode("UTF-8").strip()
 
 def auth_dropbox():
-    dbx_app_secret = get_secret(SECRET_DROPBOX_APP_SECRET)
-    dbx_app_key = get_secret(DROPBOX_APP_KEY)
-    dbx_refresh_token = get_secret(SECRET_DROPBOX_REFRESH_TOKEN)
+    dbx_app_secret = get_secret(config.SECRET_DROPBOX_APP_SECRET)
+    dbx_app_key = get_secret(config.DROPBOX_APP_KEY)
+    dbx_refresh_token = get_secret(config.SECRET_DROPBOX_REFRESH_TOKEN)
     dbx = dropbox.Dropbox(
         app_key=dbx_app_key,
         app_secret=dbx_app_secret,
@@ -108,8 +63,148 @@ def auth_dropbox():
         print("Authorization in Dropbox FAILED", e)
         raise
 
+# ---- Cursor for Dropbox ----
+def load_cursor():
+# 'loads' convert JSON into Dict, then reads key 'cursor'
+# use '.get' instead 'loads(content)["cursor"]' because
+# - if cursor doesn't exist, code is stops (KeyError)
+# - must use try\except, instead simple check
+# - in situation, where doesn't existing cursor is normal
+    blob = bucket.blob(config.CURSOR_BLOB)
+    if blob.exists():
+        content = blob.download_as_text()
+        return json.loads(content).get("cursor")
+    else:
+        print("Cursor doesn't exist. Creating...")
+        return None
+
+def save_cursor(cursor):
+    blob = bucket.blob(config.CURSOR_BLOB)
+    data = json.dumps({"cursor": cursor})
+    blob.upload_from_string(data, content_type="application/json")
+
+# ---- Loading file in GCS ----
+def upload_to_gcs(path, content):
+# storage.Client().bucket(GCS_BUCKET_NAME).blob(path).upload_from_string(content)
+    blob = bucket.blob(path)
+    blob.upload_from_string(content)
+    print(f"File {path} loaded")
+
+
+def download_fit_files_from_dropbox(entries, dbx):
+    downloaded = []
+    for entry in entries:
+        if isinstance(entry, FileMetadata):
+            print(f"Downloaded from Dropbox: {entry.path_lower}")
+            metadata, res = dbx.files_download(entry.path_lower)
+            downloaded.append((entry.path_lower, res.content))
+    return downloaded
+
+def upload_fit_files_to_gcs(files, cursor):
+    copied_files = 0
+    for path, content in files:
+        gcs_path = f"{config.GCS_CLOUD_PROJECT}{path}"
+        upload_to_gcs(gcs_path, content)
+        print(f"Uploaded in GCS: {gcs_path}")
+        copied_files += 1
+
+    save_cursor(cursor)
+    print(f"Cursor Dropbox saved: {cursor}")
+    return copied_files
+
+
+
+
+def run_pipeline_on_gcs(bucket_name: str, path_prefix, manifest_blob_path):
+    """
+    Start Second stage of pipeline
+    """
+    # 1. Get all files in folder in GCS
+    all_files = list_gcs_files(bucket_name, path_prefix)
+    # 2. Load mainfest of processing files
+    processed_files = load_processed_manifest(manifest_blob_path)
+    for blob_path in all_files:
+        if blob_path not in processed_files:
+            print(f"Now Processing {blob_path}")
+            union_pipeline(blob_path)
+            mark_as_processed(manifest_blob_path, blob_path)
+
+def list_gcs_files(bucket_name, prefix):
+    blobs = bucket.list_blobs(prefix=prefix)
+    return [f'gs://{bucket_name}/{blob.name}' for blob in blobs]
+
+def load_processed_manifest(manifest_blob_path):
+    blob = bucket.blob(manifest_blob_path)
+    try:
+        return json.loads(blob.download_as_text())
+    except NotFound:
+        blob.upload_from_string("{}", content_type="application/json")
+        return {}
+
+def mark_as_processed(manifest_blob_path, file_path1):
+    manifest = load_processed_manifest(manifest_blob_path)
+    manifest[file_path1] = datetime.now(timezone.utc).isoformat()  #python 3.10 dependency instead .utcnow()
+    blob = bucket.blob(manifest_blob_path)
+    blob.upload_from_string(json.dumps(manifest), content_type='application/json')
+
+def union_pipeline(blob_path):
+    # extracting some data from original .FIT for Data Labeling
+    # For ony files from Wahoo Roam, which name in format: 'YYYY-MM-DD-HHMMSS-elemnt... .fit'
+    # timestamp_part = filename.split("-elemnt")[0]
+    # dt = datetime.strptime(timestamp_part, "%Y-%m-%d-%H%M%S")
+    # formatted = dt.strftime("%Y-%m-%d %H:%M:%S") # extracted timestamp of start activity
+    # now = datetime.now(timezone.utc)
+    # now_str = now.strftime("%Y-%m-%d %H:%M:%S") # current timestamp
+# ----- load FIT to VM -----
+    filename = os.path.basename(blob_path)
+    path = f"{config.GSC_ORIG_FIT_FOLDER}/{filename}"
+    local_fit = f"/tmp/{filename}"
+    os.makedirs("/tmp", exist_ok=True)
+    blob = bucket.blob(path)
+    blob.download_to_filename(local_fit)
+    print(f"✅ Завантажено: {blob_path} → {local_fit}")
+# ----- FIT >>> CSV
+    local_csv = f"/tmp/{filename.replace('.fit', '.csv')}"
+    convert_fit_to_csv(local_fit, local_csv, mode='decode')
+    csv_gcs_path = f"csv/{os.path.basename(local_csv)}"
+    bucket.blob(csv_gcs_path).upload_from_filename(local_csv)
+    print(f"Uploaded CSV in GCS:{csv_gcs_path}")
+# ----- Clean csv(fit) from gps problems
+    name, ext = os.path.splitext(os.path.basename(local_csv))
+    local_csv_fix = f"/tmp/{name}_fixed{ext}"
+    bike_model = clean_gps(local_csv, local_csv_fix)
+    fit_csv_gcs_path = f"csv_clean/{os.path.basename(local_csv_fix)}"
+    bucket.blob(fit_csv_gcs_path).upload_from_filename(local_csv_fix)
+    print(f"Fixed:{fit_csv_gcs_path}")
+# ----- 3 phase CSV >>> FIT
+    name1 = os.path.splitext(os.path.basename(local_csv))[0]
+    local_fix_fit = f"/tmp/{name1}_ffixed.fit"
+    convert_fit_to_csv(local_csv_fix, local_fix_fit, mode='encode')
+    fix_fit_gcs_path = f"fit_clean/{os.path.basename(local_fix_fit)}"
+    bucket.blob(fix_fit_gcs_path).upload_from_filename(local_fix_fit)
+    print(f"Uploaded fixed version in:{fix_fit_gcs_path}")
+# ----- 4 phase fixed FIT to strava
+    current_mode = get_secret("current-mode")
+    if current_mode == "prod":
+        access_token = update_strava_token_if_needed()
+        upload_id = upload_fit_to_strava(access_token, local_fix_fit)
+        activity_id = poll_upload_status(upload_id, access_token)
+        updated = update_gear(activity_id, access_token, bike_model)
+        print(f"Uploaded to Strava: {updated}")
+    elif current_mode == "testing":
+        print(f"OFF function Strava uploading")
+# ----- Convert fit to gpx
+    local_gpx = f"/tmp/{filename.replace('.fit', '.gpx')}"
+    conv.fit_to_gpx(local_fix_fit, local_gpx)
+    gpx_gcs_path = f"gpx/{os.path.basename(local_gpx)}"
+    bucket.blob(gpx_gcs_path).upload_from_filename(local_gpx)
+    print(f"Uploaded GPX in GCS:{gpx_gcs_path}")
+# ----- Create heatmap by bike
+    #append_gpx_via_compose(local_gpx, bike_model)
+
 def sync_dropbox():
     """
+    Start stages of pipeline
     'result' returns next data
         ListFolderResult(
         entries=[FileMetadata, FolderMetadata, DeletedMetadata],
@@ -120,87 +215,36 @@ def sync_dropbox():
     dbx = auth_dropbox()
     cursor = load_cursor()
     print(f"Cursor: {cursor}")
+
+    # Отримуємо список змін
     if cursor:
         result = dbx.files_list_folder_continue(cursor)
         print("Continue with cursor")
     else:
-        result = dbx.files_list_folder(path="", recursive=True) # recursive: all subfolders
-        print("Start from root Dropbox")
+        result = dbx.files_list_folder(path=config.DROPBOX_WATCHED_FOLDER, recursive=True)
+        print("Start from empty file")
 
-    synced_files = 0
+    # Фільтруємо тільки .fit файли з потрібної директорії
+    fit_entries = [
+        entry for entry in result.entries
+        if isinstance(entry, FileMetadata)
+           and entry.path_lower.startswith("/apps/wahoofitness/")
+           and entry.name.endswith(".fit")
+    ]
 
-# 'files_download' return Tuple with two elements (FileMetadata, requests.models.Response),
-# therefore we need UNPACKING it and creating two
-# variables for handling: metadata and res. But in this code metadata not used.
-# If by mistake, write "res = dbx...", that creating tuple without unpacking,
-# and in next steps must use 'res[1]'
-    for entry in result.entries:
-        if isinstance(entry, FileMetadata):
-            print(f"Downloaded from Dropbox:{entry.path_lower}")
-            metadata, res = dbx.files_download(entry.path_lower)
-            #Create path's
-            filename = os.path.basename(entry.path_lower)
-            local_fit = f"/tmp/{filename}"
-            gcs_path = f"dropbox_sync{entry.path_lower}"
-            # Save locally for java app (for loading from file, instead load from bites)
-            # file save in local_fit var, path set in UPPER variable, local_fit
-            with open(local_fit, "wb") as f:
-                f.write(res.content)
+    if fit_entries:
+        files = download_fit_files_from_dropbox(fit_entries, dbx)
+        copied_files = upload_fit_files_to_gcs(files, result.cursor)
+        print(f"Copied {copied_files} .fit files to GCS")
 
-            # using method .content from response lib. Loading from bytes
-            upload_to_gcs(gcs_path, res.content)
-            print(f"Uploaded in GCS:{gcs_path}")
-            synced_files += 1
-            # TODO Parting one pipeline fot two prosess: get all files from dropbox and then start process in bucket
-        # extracting some data from original .FIT for Data Labeling
-            # For ony files from Wahoo Roam, which name in format: 'YYYY-MM-DD-HHMMSS-elemnt... .fit'
-            # timestamp_part = filename.split("-elemnt")[0]
-            # dt = datetime.strptime(timestamp_part, "%Y-%m-%d-%H%M%S")
-            # formatted = dt.strftime("%Y-%m-%d %H:%M:%S") # extracted timestamp of start activity
-            # now = datetime.now(timezone.utc)
-            # now_str = now.strftime("%Y-%m-%d %H:%M:%S") # current timestamp
+        run_pipeline_on_gcs(
+            config.GCS_BUCKET_NAME,
+            config.GSC_ORIG_FIT_FOLDER,
+            config.MAINFEST_GSC_PATH
+        )
+    else:
+        print("No .fit files found in /apps/wahoofitness/")
 
-    # ----- FIT >>> CSV
-            local_csv = f"/tmp/{filename.replace('.fit', '.csv')}"
-            convert_fit_to_csv(local_fit, local_csv, mode='decode')
-            csv_gcs_path = f"csv/{os.path.basename(local_csv)}"
-            bucket.blob(csv_gcs_path).upload_from_filename(local_csv)
-            print(f"Uploaded CSV in GCS:{csv_gcs_path}")
-    # ----- Clean csv(fit) from gps problems
-            name, ext = os.path.splitext(os.path.basename(local_csv))
-            local_csv_fix = f"/tmp/{name}_fixed{ext}"
-            bike_model = clean_gps(local_csv, local_csv_fix)
-            fit_csv_gcs_path = f"csv_clean/{os.path.basename(local_csv_fix)}"
-            bucket.blob(fit_csv_gcs_path).upload_from_filename(local_csv_fix)
-            print(f"Fixed:{fit_csv_gcs_path}")
-    # ----- 3 phase CSV >>> FIT
-            name1 = os.path.splitext(os.path.basename(local_csv))[0]
-            local_fix_fit = f"/tmp/{name1}_ffixed.fit"
-            convert_fit_to_csv(local_csv_fix, local_fix_fit, mode='encode')
-            fix_fit_gcs_path = f"fit_clean/{os.path.basename(local_fix_fit)}"
-            bucket.blob(fix_fit_gcs_path).upload_from_filename(local_fix_fit)
-            print(f"Uploaded fixed version in:{fix_fit_gcs_path}")
-    # ----- 4 phase fixed FIT to strava
-            current_mode = get_secret("current-mode")
-            if current_mode == "prod":
-                access_token = update_strava_token_if_needed()
-                upload_id = upload_fit_to_strava(access_token, local_fix_fit)
-                activity_id = poll_upload_status(upload_id, access_token)
-                updated = update_gear(activity_id, access_token, bike_model)
-                print(f"Uploaded to Strava: {updated}")
-            elif current_mode == "testing":
-                print(f"OFF function Strava uploading")
-    # ----- Convert fit to gpx
-            local_gpx = f"/tmp/{filename.replace('.fit', '.gpx')}"
-            conv.fit_to_gpx(local_fix_fit, local_gpx)
-            gpx_gcs_path = f"gpx/{os.path.basename(local_gpx)}"
-            bucket.blob(gpx_gcs_path).upload_from_filename(local_gpx)
-            print(f"Uploaded GPX in GCS:{gpx_gcs_path}")
-    # ----- Create heatmap by bike
-            append_gpx_via_compose(local_gpx, bike_model)
-        save_cursor(result.cursor)
-    print(f"Cursor Dropbox saved:{result.cursor}")
-    return f"Synced {synced_files} files"
 
 def convert_fit_to_csv(input_path, output_path, mode):
     flag = "-b" if mode == "decode" else "-c"
@@ -256,7 +300,7 @@ def webhook():
     elif request.method == 'POST':
         # Verify the request signature to ensure it's from Dropbox
         signature = request.headers.get('X-Dropbox-Signature')
-        dbx_app_secret = get_secret(SECRET_DROPBOX_APP_SECRET)
+        dbx_app_secret = get_secret(config.SECRET_DROPBOX_APP_SECRET)
         #print(repr(dbx_app_secret))
 
         if not hmac.compare_digest(signature,hmac.new(dbx_app_secret.encode(), request.data, hashlib.sha256).hexdigest()):
@@ -268,6 +312,7 @@ def webhook():
 
         #if 'list_folder' in request.json:
         #    print("Received a change notification")
+        print("Request:",request.json)
         sync_dropbox()
         print("Webhook received. A file change was detected")
 
@@ -276,7 +321,7 @@ def webhook():
 
 @app.route("/upload_to_dropbox_session", methods=["POST"])
 def upload_to_dropbox_session():
-    gcs_path = GSC_HEATMAP_PATH
+    gcs_path = config.GSC_HEATMAP_PATH
     print(f"gcs_path={gcs_path}") #DELETE
     if not gcs_path:
         return jsonify({"error": "Missing gcs_path"}), 400
@@ -284,8 +329,8 @@ def upload_to_dropbox_session():
     try:
         dbx = auth_dropbox()
         results = []
-        for hm_name in HEATMAP_FILES:
-            dropbox_path = f"/{DROPBOX_HEATMAP}/{hm_name}"
+        for hm_name in config.HEATMAP_FILES:
+            dropbox_path = f"/{config.DROPBOX_HEATMAP}/{hm_name}"
             print(f"dropbox_path={dropbox_path}")
             blob = bucket.blob(f"{gcs_path}/{hm_name}")
             print(f"blob={blob}")  # DELETE
@@ -301,7 +346,7 @@ def upload_to_dropbox_session():
                 logging.warning(f"Blob is empty: {blob.name}")
                 continue
             stream = io.BytesIO(data)
-            first_chunk = stream.read(CHUNK_SIZE)
+            first_chunk = stream.read(config.CHUNK_SIZE)
             if not first_chunk:
                 logging.warning(f"First chunk empty: {blob.name}")
                 continue
@@ -311,12 +356,12 @@ def upload_to_dropbox_session():
             commit = dropbox.files.CommitInfo(path=dropbox_path, mode=dropbox.files.WriteMode.overwrite)
 
             while True:
-                chunk = stream.read(CHUNK_SIZE)
+                chunk = stream.read(config.CHUNK_SIZE)
                 if not chunk:
                     dbx.files_upload_session_finish(b"", cursor, commit)
                     print("Break reached")
                     break
-                if len(chunk) < CHUNK_SIZE:
+                if len(chunk) < config.CHUNK_SIZE:
                     dbx.files_upload_session_finish(chunk, cursor, commit)
                     print(f"Committed {len(chunk)} bytes")
                     break
@@ -331,8 +376,7 @@ def upload_to_dropbox_session():
     except Exception as e:
         logging.error(f"Upload failed: {e}")
         return jsonify({"error": str(e)}), 500
-
-if __name__ == "__main__":
     # Cloud Run set PORT as it want. For testing code locally, already will be using 8080
     # guinocorn ignores this row
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+#if __name__ == "__main__":
+#    app.run(debug=False, use_reloader=False, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
