@@ -11,21 +11,20 @@ import numpy
 import lxml
 import re
 import io
+import logging
+import subprocess
+import warnings
 from fit2gpx import Converter
 from dropbox.exceptions import AuthError #not necessary, but hide fake error warning
 from dropbox.files import FileMetadata #add types, instead dropbox.files.FileMetadata, use only Fi.
 from flask import Flask, request, Response, jsonify
-import logging
 from google.cloud import storage, secretmanager
 from google.cloud.exceptions import NotFound
-import subprocess
 from checking_env import checking_env
-import warnings
 from strava.auth import update_strava_token_if_needed
 from strava.upload import upload_fit_to_strava, poll_upload_status, update_gear
 from heatmap_gpx.append_function import append_gpx_via_compose
-from datetime import datetime, timezone # for Data Labeling
-
+from datetime import datetime, timezone
 
 # TODO it is testing feature or it neet ON permanently? Or simple disable message?
 #checking_env()  # Formal test for existing secrets temporary OFF
@@ -90,7 +89,6 @@ def upload_to_gcs(path, content):
     blob.upload_from_string(content)
     print(f"File {path} loaded")
 
-
 def download_fit_files_from_dropbox(entries, dbx):
     downloaded = []
     for entry in entries:
@@ -107,13 +105,9 @@ def upload_fit_files_to_gcs(files, cursor):
         upload_to_gcs(gcs_path, content)
         print(f"Uploaded in GCS: {gcs_path}")
         copied_files += 1
-
     save_cursor(cursor)
     print(f"Cursor Dropbox saved: {cursor}")
     return copied_files
-
-
-
 
 def run_pipeline_on_gcs(bucket_name: str, path_prefix, manifest_blob_path):
     """
@@ -157,33 +151,34 @@ def union_pipeline(blob_path):
     # now_str = now.strftime("%Y-%m-%d %H:%M:%S") # current timestamp
 # ----- load FIT to VM -----
     filename = os.path.basename(blob_path)
-    path = f"{config.GSC_ORIG_FIT_FOLDER}/{filename}"
+    path = f"{config.GSC_ORIG_FIT_FOLDER}/{filename}" # Exclude gs:// part from path: simple build new path from variables
     local_fit = f"/tmp/{filename}"
     os.makedirs("/tmp", exist_ok=True)
     blob = bucket.blob(path)
     blob.download_to_filename(local_fit)
-    print(f"✅ Завантажено: {blob_path} → {local_fit}")
-# ----- FIT >>> CSV
+    print(f".fit downloaded to VM: {blob_path} → {local_fit}")
+# ----- FIT >>> Unexplored CSV
     local_csv = f"/tmp/{filename.replace('.fit', '.csv')}"
     convert_fit_to_csv(local_fit, local_csv, mode='decode')
-    csv_gcs_path = f"csv/{os.path.basename(local_csv)}"
-    bucket.blob(csv_gcs_path).upload_from_filename(local_csv)
-    print(f"Uploaded CSV in GCS:{csv_gcs_path}")
-# ----- Clean csv(fit) from gps problems
+    #csv_gcs_path = f"csv/{os.path.basename(local_csv)}"
+    #bucket.blob(csv_gcs_path).upload_from_filename(local_csv)
+    #print(f"Uploaded unexplored CSV in bucket:{csv_gcs_path}")
+    print("Skipped saving the unexplored CSV in a bucket")
+# ----- Clean unexplored CSV from gps problems
     name, ext = os.path.splitext(os.path.basename(local_csv))
     local_csv_fix = f"/tmp/{name}_fixed{ext}"
     bike_model = clean_gps(local_csv, local_csv_fix)
     fit_csv_gcs_path = f"csv_clean/{os.path.basename(local_csv_fix)}"
     bucket.blob(fit_csv_gcs_path).upload_from_filename(local_csv_fix)
     print(f"Fixed:{fit_csv_gcs_path}")
-# ----- 3 phase CSV >>> FIT
+# ----- 3 phase explored CSV >>> FIT
     name1 = os.path.splitext(os.path.basename(local_csv))[0]
     local_fix_fit = f"/tmp/{name1}_ffixed.fit"
     convert_fit_to_csv(local_csv_fix, local_fix_fit, mode='encode')
     fix_fit_gcs_path = f"fit_clean/{os.path.basename(local_fix_fit)}"
     bucket.blob(fix_fit_gcs_path).upload_from_filename(local_fix_fit)
     print(f"Uploaded fixed version in:{fix_fit_gcs_path}")
-# ----- 4 phase fixed FIT to strava
+# ----- 4 phase: Push explored FIT to strava
     current_mode = get_secret("current-mode")
     if current_mode == "prod":
         access_token = update_strava_token_if_needed()
@@ -192,15 +187,15 @@ def union_pipeline(blob_path):
         updated = update_gear(activity_id, access_token, bike_model)
         print(f"Uploaded to Strava: {updated}")
     elif current_mode == "testing":
-        print(f"OFF function Strava uploading")
-# ----- Convert fit to gpx
+        print(f"SKIPPED uploading to STRAVA")
+# ----- Convert explored FIT to GPX
     local_gpx = f"/tmp/{filename.replace('.fit', '.gpx')}"
     conv.fit_to_gpx(local_fix_fit, local_gpx)
     gpx_gcs_path = f"gpx/{os.path.basename(local_gpx)}"
     bucket.blob(gpx_gcs_path).upload_from_filename(local_gpx)
     print(f"Uploaded GPX in GCS:{gpx_gcs_path}")
 # ----- Create heatmap by bike
-    #append_gpx_via_compose(local_gpx, bike_model)
+    append_gpx_via_compose(local_gpx, bike_model, gpx_gcs_path)
 
 def sync_dropbox():
     """
@@ -216,7 +211,7 @@ def sync_dropbox():
     cursor = load_cursor()
     print(f"Cursor: {cursor}")
 
-    # Отримуємо список змін
+    # Get lisf of changes
     if cursor:
         result = dbx.files_list_folder_continue(cursor)
         print("Continue with cursor")
@@ -224,27 +219,24 @@ def sync_dropbox():
         result = dbx.files_list_folder(path=config.DROPBOX_WATCHED_FOLDER, recursive=True)
         print("Start from empty file")
 
-    # Фільтруємо тільки .fit файли з потрібної директорії
+    # Filtering only .fit files from certain folder
     fit_entries = [
         entry for entry in result.entries
         if isinstance(entry, FileMetadata)
            and entry.path_lower.startswith("/apps/wahoofitness/")
            and entry.name.endswith(".fit")
     ]
-
     if fit_entries:
         files = download_fit_files_from_dropbox(fit_entries, dbx)
         copied_files = upload_fit_files_to_gcs(files, result.cursor)
         print(f"Copied {copied_files} .fit files to GCS")
-
         run_pipeline_on_gcs(
             config.GCS_BUCKET_NAME,
             config.GSC_ORIG_FIT_FOLDER,
             config.MAINFEST_GSC_PATH
         )
     else:
-        print("No .fit files found in /apps/wahoofitness/")
-
+        print(f"No .fit files found in {config.DROPBOX_WATCHED_FOLDER}")
 
 def convert_fit_to_csv(input_path, output_path, mode):
     flag = "-b" if mode == "decode" else "-c"
@@ -258,7 +250,7 @@ def label_bike(lines):
             return 'b7647614'
         if any(code in line for code in gravel):
             return 'b8850168'
-    return ''
+    return 'b0000000'
 
 def clean_gps(input_path, output_path):
     """
@@ -321,26 +313,23 @@ def webhook():
 
 @app.route("/upload_to_dropbox_session", methods=["POST"])
 def upload_to_dropbox_session():
-    gcs_path = config.GSC_HEATMAP_PATH
-    print(f"gcs_path={gcs_path}") #DELETE
-    if not gcs_path:
-        return jsonify({"error": "Missing gcs_path"}), 400
+    gcs_folder = request.json.get("gcs_folder")
+    print(f"gcs_path={gcs_folder}") #DELETE
+    if not gcs_folder:
+        return jsonify({"error": "Missing gcs_folder"}), 400
+    if not gcs_folder.endswith("/"):
+        gcs_folder += "/"
+    blobs = list(bucket.list_blobs(prefix=gcs_folder))
+    if not blobs:
+        return jsonify({"error": "No files found in folder"}), 404
+    dbx = auth_dropbox()
+    uploaded = []
 
-    try:
-        dbx = auth_dropbox()
-        results = []
-        for hm_name in config.HEATMAP_FILES:
-            dropbox_path = f"/{config.DROPBOX_HEATMAP}/{hm_name}"
-            print(f"dropbox_path={dropbox_path}")
-            blob = bucket.blob(f"{gcs_path}/{hm_name}")
-            print(f"blob={blob}")  # DELETE
-            if not blob.exists():
-                logging.warning(f"Blob not found: {gcs_path}")
-                results.append({"file": hm_name, "status": "not found"})
-                return jsonify({"error": "Blob not found"}), 404
-
+    for blob in blobs:
+        if blob.name.endswith("/"):  # skip "folders"
+            continue
+        try:
             # Stream blob content in chunks
-
             data = blob.download_as_bytes() #dont use blob.open("rb")
             if not data:
                 logging.warning(f"Blob is empty: {blob.name}")
@@ -353,6 +342,7 @@ def upload_to_dropbox_session():
 
             session_start = dbx.files_upload_session_start(first_chunk)
             cursor = dropbox.files.UploadSessionCursor(session_id=session_start.session_id, offset=stream.tell())
+            dropbox_path = f"/heatmap/{os.path.basename(blob.name)}"
             commit = dropbox.files.CommitInfo(path=dropbox_path, mode=dropbox.files.WriteMode.overwrite)
 
             while True:
@@ -370,12 +360,11 @@ def upload_to_dropbox_session():
                     cursor.offset += len(chunk)
                     print(f"Else committed {len(chunk)} bytes")
             logging.info(f"Uploaded to Dropbox: {dropbox_path}")
-            results.append({"file": hm_name, "status": "uploaded", "dropbox_path": dropbox_path})
-            print("Results:", results)
-        return jsonify({"results": results}), 200
-    except Exception as e:
-        logging.error(f"Upload failed: {e}")
-        return jsonify({"error": str(e)}), 500
+            uploaded.append(dropbox_path)
+            print("Results:", uploaded)
+        except Exception as e:
+            logging.error(f"Upload failed: {e}")
+    return jsonify({"status": "completed", "uploaded_files": uploaded}), 200
     # Cloud Run set PORT as it want. For testing code locally, already will be using 8080
     # guinocorn ignores this row
 #if __name__ == "__main__":
