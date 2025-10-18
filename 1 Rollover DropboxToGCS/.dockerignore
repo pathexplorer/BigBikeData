@@ -1,7 +1,8 @@
 /other/
 /_old/
 /_local_tests/
-Scheme.drawio
+docs/Scheme.drawio
+project_env/keys.env
 /strava/get_refresh_token.py
 wahoo.yaml
 /Setup/

@@ -6,11 +6,8 @@ from google.cloud import storage
 import os
 import re
 import json
-from dotenv import load_dotenv
-import config
-load_dotenv()
+from project_env import config
 
-LOCAL_TMP = "/tmp"
 
 def strip_source_content(file_path: str) -> str | None:
     with open(file_path, "r", encoding="utf-8") as f:
@@ -71,7 +68,7 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path):
     gpx_name, index_name, compose_name = branch
 
     # Local path
-    local_index_path = os.path.join(LOCAL_TMP, index_name)
+    local_index_path = os.path.join(config.LOCAL_TMP, index_name)
     # Path's in the bucket
 
     index_blob_name = f"heatmap/{index_name}"
@@ -131,7 +128,7 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path):
     main_blob = bucket.blob(main_blob_name)
     if not main_blob.exists():
         print(f"Heatmap file doesn't exist. Creating empty blob with XML header. His compose version is 0")
-        main_blob_path = os.path.join(LOCAL_TMP, os.path.basename(main_blob_name))
+        main_blob_path = os.path.join(config.LOCAL_TMP, os.path.basename(main_blob_name))
         os.makedirs(os.path.dirname(main_blob_path), exist_ok=True)
         with open(main_blob_path, "w", encoding="utf-8") as f:
             f.write("""<?xml version="1.0" encoding="UTF-8"?>
