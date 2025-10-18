@@ -6,6 +6,9 @@ from dropbox.exceptions import AuthError #not necessary, but hide fake error war
 from dropbox.files import FileMetadata #add types, instead dropbox.files.FileMetadata, use only Fi.
 from workshop.pipeline import run_pipeline_on_gcs
 from gcs.client import get_bucket
+import hmac
+import hashlib
+from flask import request, Response
 
 bucket = get_bucket()
 
@@ -76,6 +79,24 @@ def upload_fit_files_to_gcs(files, cursor):
     print(f"Cursor Dropbox saved: {cursor}")
     return copied_files
 
+def check_signature():
+    # Verify the request signature to ensure it's from Dropbox
+    signature = request.headers.get('X-Dropbox-Signature')
+    dbx_app_secret = get_secret(config.SECRET_DROPBOX_APP_SECRET)
+
+    if not hmac.compare_digest(signature, hmac.new(dbx_app_secret.encode(), request.data, hashlib.sha256).hexdigest()):
+        expected_sig = hmac.new(dbx_app_secret.encode(), request.data, hashlib.sha256).hexdigest()
+        print(f"Expected signature: {expected_sig}")
+        print(f"Received signature: {signature}")
+        print("Invalid signature. Request ignored.")
+        return Response("Forbidden", status=403)
+    print("Request:", request.json)
+    success = connect_to_dropbox()
+    if success:
+        return Response("Pipeline started", status=200)
+    else:
+        return Response("No files found. Nothing to process.", status=204)
+
 def connect_to_dropbox():
     """
     Start stages of pipeline
@@ -114,5 +135,7 @@ def connect_to_dropbox():
             config.GSC_ORIG_FIT_FOLDER,
             config.MAINFEST_GSC_PATH
         )
+        return True
     else:
         print(f"No .fit files found in {config.DROPBOX_WATCHED_FOLDER}")
+        return False
