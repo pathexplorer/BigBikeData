@@ -20,7 +20,7 @@ def poll_upload_status(upload_id, access_token):
     url = f"https://www.strava.com/api/v3/uploads/{upload_id}"
     headers = {"Authorization": f"Bearer {access_token}"}
 
-    for _ in range(10):  # ~20 секунд очікування
+    for _ in range(20):  # ~20 second wait
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         data = response.json()

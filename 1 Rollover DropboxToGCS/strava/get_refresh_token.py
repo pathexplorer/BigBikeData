@@ -1,22 +1,17 @@
 """
 Base setting for first run
 """
-
 from flask import Flask, redirect, request, jsonify
 import requests
-import os
-
-
-from dotenv import load_dotenv
-load_dotenv(dotenv_path="../other/keys.env")
-
+from project_env import config
+from gcs.google_secret_manager import get_secret
 
 app = Flask(__name__)
 
 # Credentials
-CLIENT_ID = os.getenv("STRAVA_CLIENT_ID")
-CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET")
-REDIRECT_URI = os.getenv("STRAVA_REDIRECT_URI", "http://localhost:5000/exchange_token")
+CLIENT_ID = get_secret("STRAVA_CLIENT_ID")
+CLIENT_SECRET = get_secret("STRAVA_SECRET")
+REDIRECT_URI = config.STRAVA_REDIRECT_URI
 
 @app.route("/")
 def home():

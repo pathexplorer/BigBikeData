@@ -1,47 +1,22 @@
 """
-for future use
+Initializing Dropbox App
+For local run
 """
-
-import os
 import requests
 from flask import Flask, redirect, request, jsonify
-from dotenv import load_dotenv
-from google.cloud import secretmanager
-from google.api_core.exceptions import AlreadyExists
+from gcs.google_secret_manager import create_secret, update_secret, get_secret
+from project_env import config
 
-load_dotenv(dotenv_path="../other/keys.env")
 app = Flask(__name__)
 
-DROPBOX_CLIENT_ID = os.getenv("DROPBOX_APP_KEY")
-DROPBOX_CLIENT_SECRET = os.getenv("SECRET_DROPBOX_APP_SECRET")
-DROPBOX_REDIRECT_URI = os.getenv("DROPBOX_REDIRECT_URI")
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "../other/a.json"
+DROPBOX_CLIENT_ID = get_secret("DROPBOX_APP_KEY")
+DROPBOX_CLIENT_SECRET = get_secret("SECRET_DROPBOX_APP_SECRET")
+DROPBOX_REDIRECT_URI = config.DROPBOX_REDIRECT_URI
 
-def store_refresh_token(secret_id: str, refresh_token: str, project_id: str):
-    client = secretmanager.SecretManagerServiceClient()
-    parent = f"projects/{project_id}"
-
-    # Creating secret, if not exist
-    try:
-        client.create_secret(
-            request={
-                "parent": parent,
-                "secret_id": secret_id,
-                "secret": {
-                    "replication": {"automatic": {}}
-                },
-            }
-        )
-    except AlreadyExists:
-        print(f"Secret '{secret_id}' already exists. Skipping creation.")
-    # Add new version
-    client.add_secret_version(
-        request={
-            "parent": f"{parent}/secrets/{secret_id}",
-            "payload": {"data": refresh_token.encode("UTF-8")},
-        }
-    )
-
+def store_refresh_token(secret_id: str, refresh_token: str):
+    create_secret(secret_id)
+    # or add new version if it doesn't exist
+    update_secret(secret_id, refresh_token)
 
 @app.route("/")
 def index():
@@ -54,7 +29,6 @@ def index():
     )
     print("Route / completed")
     return redirect(auth_url)
-
 
 @app.route("/oauth/callback")
 def oauth_callback():
@@ -82,15 +56,13 @@ def oauth_callback():
     access_token = token_data.get("access_token")
 
     # Зберегти в Secret Manager
-    project_id = os.getenv("GCP_PROJECT_ID") #or get_project_id_from_metadata()
-    store_refresh_token("dropbox-refresh-token", refresh_token, project_id)
+    store_refresh_token("dropbox-refresh-token", refresh_token)
 
     return jsonify({
         "access_token": access_token,
         "refresh_token": refresh_token,
         "note": "Refresh token saved to Secret Manager."
     })
-
 
 if __name__ == "__main__":
     app.run(debug=True)
