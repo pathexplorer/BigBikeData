@@ -13,12 +13,15 @@ if IS_LOCAL: # then load .env file
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
 GCS_CLOUD_PROJECT = os.environ.get("GCS_CLOUD_PROJECT")
+# not work
+# GOOGLE_CRED_JSON = os.environ.get("GOOGLE_CRED_JSON")
+
 
 # Dropbox and GCS configuration
 SECRET_DROPBOX_APP_SECRET = "dropbox-app-secret"
 SECRET_DROPBOX_REFRESH_TOKEN = "dropbox-refresh-token"
 DROPBOX_APP_KEY = "dropbox-app-key"
-DROPBOX_REDIRECT_URI= "http://localhost:5000/oauth/callback"
+DROPBOX_REDIRECT_URI = "http://localhost:5000/oauth/callback"
 
 # Strava
 STRAVA_CLIENT_ID="strava-client-id"
