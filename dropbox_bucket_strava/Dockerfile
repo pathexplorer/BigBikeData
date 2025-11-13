@@ -10,6 +10,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y --no-ins
 RUN java -version
 
 # Set environment variables
+
 ENV PYTHONUNBUFFERED=True
 ENV APP_HOME=/app
 ENV PORT=8080
