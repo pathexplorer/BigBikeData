@@ -2,12 +2,17 @@
 /_old/
 /docs/
 /other/
-project_env/*.env
+project_env/keys.env
+project_env/token_api.env
 project_env/inspect_env.py
 project_env/expanding_path.py
 /startup/
 /strava/get_refresh_token.py
 /dropbox_usage/get_secr.py
+/heatmap_gpx/closer.py
+/heatmap_gpx/power.sh
 wahoo.yaml
+wahoo_start.sh
+.gitignore
 
 
