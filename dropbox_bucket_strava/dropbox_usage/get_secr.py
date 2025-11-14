@@ -4,29 +4,33 @@ For local run
 """
 import requests
 from flask import Flask, redirect, request, jsonify
-from gcs.google_secret_manager import create_secret, update_secret, get_secret
+from gcp_actions.secret_manager import SecretManagerClient
 from project_env import config
+from urllib.parse import urlencode
 
 app = Flask(__name__)
+sa_email_dd=config.s_email_dropbox
+project_idd=config.GCP_PROJECT_ID
 
-DROPBOX_CLIENT_ID = get_secret("DROPBOX_APP_KEY")
-DROPBOX_CLIENT_SECRET = get_secret("SECRET_DROPBOX_APP_SECRET")
+sm = SecretManagerClient(project_idd,sa_email_dd)
+secrets_db_dict = sm.get_secret_json(config.SEC_DROPBOX)
+
+DROPBOX_CLIENT_ID = secrets_db_dict.get("DROPBOX_APP_KEY")
+DROPBOX_CLIENT_SECRET = secrets_db_dict.get("DROPBOX_APP_SECRET")
 DROPBOX_REDIRECT_URI = config.DROPBOX_REDIRECT_URI
 
-def store_refresh_token(secret_id: str, refresh_token: str):
-    create_secret(secret_id)
-    # or add new version if it doesn't exist
-    update_secret(secret_id, refresh_token)
+
 
 @app.route("/")
 def index():
-    auth_url = (
-        "https://www.dropbox.com/oauth2/authorize"
-        f"?client_id={DROPBOX_CLIENT_ID}"
-        f"&response_type=code"
-        f"&redirect_uri={DROPBOX_REDIRECT_URI}"
-        f"&token_access_type=offline"
-    )
+    params = {
+        "client_id": DROPBOX_CLIENT_ID,
+        "response_type": "code",
+        "redirect_uri": DROPBOX_REDIRECT_URI,
+        "token_access_type": "offline",
+        "scope": "account_info.read files.content.read files.content.write files.metadata.read files.metadata.write"
+    }
+    auth_url = "https://www.dropbox.com/oauth2/authorize?" + urlencode(params)
     print("Route / completed")
     return redirect(auth_url)
 
@@ -56,7 +60,11 @@ def oauth_callback():
     access_token = token_data.get("access_token")
 
     # Зберегти в Secret Manager
-    store_refresh_token("dropbox-refresh-token", refresh_token)
+    if "DROPBOX_REFRESH_TOKEN" in secrets_db_dict:
+        secrets_db_dict["DROPBOX_REFRESH_TOKEN"] = token_data["refresh_token"]
+
+    sm.update_secret_json(config.SEC_DROPBOX, secrets_db_dict)
+
 
     return jsonify({
         "access_token": access_token,

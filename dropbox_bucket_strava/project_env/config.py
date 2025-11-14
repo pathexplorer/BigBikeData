@@ -12,34 +12,25 @@ if IS_LOCAL: # then load .env file
 # GCP credentials
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
-GCS_CLOUD_PROJECT = os.environ.get("GCS_CLOUD_PROJECT")
-# not work
-# GOOGLE_CRED_JSON = os.environ.get("GOOGLE_CRED_JSON")
-
-
-# Dropbox and GCS configuration
-SECRET_DROPBOX_APP_SECRET = "dropbox-app-secret"
-SECRET_DROPBOX_REFRESH_TOKEN = "dropbox-refresh-token"
-DROPBOX_APP_KEY = "dropbox-app-key"
+CLOUD_RUN_SERVICE = os.environ.get("CLOUD_RUN_SERVICE")
+# Dropbox and Strava
+SEC_STRAVA="strava-secrets"
+SEC_DROPBOX="dropbox-secrets"
+s_email_run = os.environ.get("S_ACCOUNT_RUN")
+s_email_dropbox = os.environ.get("S_ACCOUNT_DROPBOX")
+s_email_strava = os.environ.get("S_ACCOUNT_STRAVA")
 DROPBOX_REDIRECT_URI = "http://localhost:5000/oauth/callback"
-
-# Strava
-STRAVA_CLIENT_ID="strava-client-id"
-STRAVA_SECRET="strava-client-secret"
 STRAVA_REDIRECT_URI="http://localhost:5000/exchange_token"
-
 # Pathes
-DROPBOX_WATCHED_FOLDER = "/apps/wahoofitness"
-GSC_ORIG_FIT_FOLDER=f"{GCS_CLOUD_PROJECT}/apps/wahoofitness"
+DROPBOX_WATCHED_FOLDER = "/apps/activities"
+GSC_ORIG_FIT_FOLDER=f"{CLOUD_RUN_SERVICE}/apps/activities"
 LOCAL_TMP = "/tmp"
-
 # load heatmap, app route "upload to dropbox"
 DROPBOX_HEATMAP = "heatmap"
 GSC_HEATMAP_PATH = "heatmap"
 HEATMAP_FILES = ['mtb.gpx','gravel.gpx']
 CHUNK_SIZE = 8 * 1024 * 1024  # 8MB
-
 # Indexes
 CURSOR_BLOB = "tmp/dropbox_cursor.json"
-MAINFEST_GSC_PATH = f"{GCS_CLOUD_PROJECT}/manifests.json"
+MAINFEST_GSC_PATH = f"{CLOUD_RUN_SERVICE}/manifests.json"
 

@@ -85,6 +85,7 @@ ROLES_SA_RUN=(
  roles/pubsub.serviceAgent
  roles/pubsub.publisher
  roles/secretmanager.admin
+ roles/datastore.viewer
 )
 
 ROLES_USER_ACCOUNT=(
@@ -94,6 +95,10 @@ API_LIST=(
  secretmanager.googleapis.com
  compute.googleapis.com
  artifactregistry.googleapis.com
+ firestore.googleapis.com
+ cloudbuild.googleapis.com
+ run.googleapis.com
+
 )
 
 
@@ -104,7 +109,7 @@ TEMP_ROLE="roles/iam.serviceAccountTokenCreator"
 REQUIRED_VARS=(
 "REGION"
 "MY_USER_ACCOUNT"
-"GOOGLE_CRED_JSON"
+"GOOGLE_APPLICATION_CREDENTIALS"
 "GCONFIG_NAME"
 "SA_NAME_DROPBOX"
 "SA_NAME_STRAVA"
@@ -129,6 +134,7 @@ ENABLE_JSON_CREATE=true
 ENABLE_SECRETS=true
 ENABLE_BIND_RES_ROLE_TO_SA=true
 ENABLE_CREATE_ART_REG_REPO=true
+ENABLE_FIRESTORE_CREATE=true
 
 
 
@@ -303,10 +309,20 @@ run_stage "stage_10_SA_BINDING_VERIF"
 stage_11_JSON_CREATE() {
 if [[ "$ENABLE_JSON_CREATE" == "true" ]]; then
 # Reusable universal method
-    create_json_cred "$SA_EMAIL_3" "$GEN_NAME_PROJECT" "$GOOGLE_CRED_JSON"
+    create_json_cred "$SA_EMAIL_3" "$GEN_NAME_PROJECT" "$GOOGLE_APPLICATION_CREDENTIALS"
 fi
 }
 run_stage "stage_11_JSON_CREATE"
+
+stage_12_FIRESTORE_CREATE() {
+if [[ "$ENABLE_FIRESTORE_CREATE" == "true" ]]; then
+# Reusable universal method
+    create_firestore "$REGION"
+fi
+}
+run_stage "stage_12_FIRESTORE_CREATE"
+
+
 
 
 

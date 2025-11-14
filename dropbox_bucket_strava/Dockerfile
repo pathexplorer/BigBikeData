@@ -1,5 +1,4 @@
-# Use the official lightweight Python image.
-FROM python:3.10
+FROM python:3.11
 
 # istall Java
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y --no-install-recommends \

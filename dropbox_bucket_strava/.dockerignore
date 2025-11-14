@@ -1,0 +1,13 @@
+/_local_tests/
+/_old/
+/docs/
+/other/
+project_env/*.env
+project_env/inspect_env.py
+project_env/expanding_path.py
+/startup/
+/strava/get_refresh_token.py
+/dropbox_usage/get_secr.py
+wahoo.yaml
+
+

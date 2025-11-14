@@ -1,9 +1,12 @@
 flask
-dropbox
-google-cloud-storage
 gunicorn
+dropbox
 google-cloud-secret-manager
+google-cloud-firestore
+google-cloud-storage
+google-auth
 git+https://github.com/pathexplorer/fit2gpx.git@first
+git+https://github.com/pathexplorer/gcp_actions.git@v.0.1.2
 gpxpy
 numpy
 pandas
