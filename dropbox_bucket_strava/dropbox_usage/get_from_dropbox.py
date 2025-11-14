@@ -1,23 +1,29 @@
-from gcs.google_secret_manager import get_secret
+from gcp_actions.secret_manager import SecretManagerClient
 from project_env import config
 import json
 import dropbox
+from gcp_actions.blob_manipulation import upload_to_gcp_bucket
 from dropbox.exceptions import AuthError #not necessary, but hide fake error warning
-from dropbox.files import FileMetadata #add types, instead dropbox.files.FileMetadata, use only Fi.
+from dropbox.files import FileMetadata, DeletedMetadata #add types, instead dropbox.files.FileMetadata, use only Fi.
 from workshop.pipeline import run_pipeline_on_gcs
-from gcs.client import get_bucket
+from gcp_actions.client import get_bucket
 import hmac
 import hashlib
 from flask import request, Response
 
+
+
 bucket = get_bucket()
 
+sm = SecretManagerClient(config.GCP_PROJECT_ID,config.s_email_dropbox)
+secrets_db_dict = sm.get_secret_json(config.SEC_DROPBOX)
+path_cursor_blob = config.CURSOR_BLOB
 
 # ------- AUTHORIZATION -----------
 def auth_dropbox():
-    dbx_app_secret = get_secret(config.SECRET_DROPBOX_APP_SECRET)
-    dbx_app_key = get_secret(config.DROPBOX_APP_KEY)
-    dbx_refresh_token = get_secret(config.SECRET_DROPBOX_REFRESH_TOKEN)
+    dbx_app_key = secrets_db_dict.get("DROPBOX_APP_KEY")
+    dbx_app_secret = secrets_db_dict.get("DROPBOX_APP_SECRET")
+    dbx_refresh_token = secrets_db_dict.get("DROPBOX_REFRESH_TOKEN")
     dbx = dropbox.Dropbox(
         app_key=dbx_app_key,
         app_secret=dbx_app_secret,
@@ -39,7 +45,7 @@ def load_cursor():
 # - if cursor doesn't exist, code is stops (KeyError)
 # - must use try\except, instead simple check
 # - in situation, where doesn't existing cursor is normal
-    blob = bucket.blob(config.CURSOR_BLOB)
+    blob = bucket.blob(path_cursor_blob)
     if blob.exists():
         content = blob.download_as_text()
         return json.loads(content).get("cursor")
@@ -47,10 +53,55 @@ def load_cursor():
         print("Cursor doesn't exist. Creating...")
         return None
 
+
+# --- ADD THIS FUNCTION ---
 def save_cursor(cursor):
-    blob = bucket.blob(config.CURSOR_BLOB)
-    data = json.dumps({"cursor": cursor})
-    blob.upload_from_string(data, content_type="application/json")
+    """
+    Saves the new cursor to GCS.
+    'cursor' can be a string or None (to reset).
+    """
+    if cursor:
+        print(f"Saving new cursor: {cursor[:15]}...")
+        data = {"cursor": cursor}
+        upload_to_gcp_bucket(path_cursor_blob, data, "string")
+    else:
+        # Called when sync fails and needs a full reset
+        print("Resetting cursor to None.")
+        blob = bucket.blob(path_cursor_blob)
+        if blob.exists():
+            blob.delete()
+
+
+# --- ADD THIS FUNCTION ---
+def handle_deletions_in_gcs(deleted_entries):
+    """
+    Deletes corresponding files from GCS.
+    """
+    print(f"Deleting {len(deleted_entries)} files from GCS...")
+    bucket = get_bucket()  # Make sure bucket is in scope
+    dropbox_prefix = "/apps/activities/"
+    gcs_prefix = config.GSC_ORIG_FIT_FOLDER
+    for entry in deleted_entries:
+
+        # entry.path_lower is like: /apps/activities/file.fit
+        # We need to construct the GCS path
+        # ⚠️ CHECK THIS LOGIC ⚠️
+
+        # Remove the '/apps' prefix from Dropbox path
+        # /apps/activities/file.fit -> /activities/file.fit
+        relative_path = entry.path_lower.replace(dropbox_prefix, "", 1)
+
+        gcs_path = f"{gcs_prefix.rstrip('/')}/{relative_path.lstrip('/')}"
+
+        blob = bucket.blob(gcs_path)
+        if blob.exists():
+            print(f"Deleting: {gcs_path}")
+            blob.delete()
+        else:
+            print(f"Skipping (not found): {gcs_path}")
+
+
+
 
 # ---- Loading file in GCS ----
 def download_fit_files_from_dropbox(entries, dbx):
@@ -62,27 +113,28 @@ def download_fit_files_from_dropbox(entries, dbx):
             downloaded.append((entry.path_lower, res.content))
     return downloaded
 
-def upload_to_gcs(path, content):
-# storage.Client().bucket(GCS_BUCKET_NAME).blob(path).upload_from_string(content)
-    blob = bucket.blob(path)
-    blob.upload_from_string(content)
-    print(f"File {path} loaded")
 
-def upload_fit_files_to_gcs(files, cursor):
+def upload_fit_files_to_gcs(files):
     copied_files = 0
+    dropbox_prefix = "/apps/activities/"
+    gcs_prefix = config.GSC_ORIG_FIT_FOLDER
     for path, content in files:
-        gcs_path = f"{config.GCS_CLOUD_PROJECT}{path}"
-        upload_to_gcs(gcs_path, content)
-        print(f"Uploaded in GCS: {gcs_path}")
+        # path is like: /apps/activities/file.fit
+        # ⚠️ CHECK THIS LOGIC ⚠️
+        # Remove the '/apps' prefix from Dropbox path
+        # /apps/activities/file.fit -> /activities/file.fit
+        relative_path = path.replace(dropbox_prefix, "", 1)
+        gcs_path = f"{gcs_prefix.rstrip('/')}/{relative_path.lstrip('/')}"
+        upload_to_gcp_bucket(gcs_path, content, "string_path")
         copied_files += 1
-    save_cursor(cursor)
-    print(f"Cursor Dropbox saved: {cursor}")
     return copied_files
 
+
+
+
 def check_signature():
-    # Verify the request signature to ensure it's from Dropbox
     signature = request.headers.get('X-Dropbox-Signature')
-    dbx_app_secret = get_secret(config.SECRET_DROPBOX_APP_SECRET)
+    dbx_app_secret = secrets_db_dict.get("DROPBOX_APP_SECRET")
 
     if not hmac.compare_digest(signature, hmac.new(dbx_app_secret.encode(), request.data, hashlib.sha256).hexdigest()):
         expected_sig = hmac.new(dbx_app_secret.encode(), request.data, hashlib.sha256).hexdigest()
@@ -97,45 +149,127 @@ def check_signature():
     else:
         return Response("No files found. Nothing to process.", status=204)
 
+
 def connect_to_dropbox():
     """
-    Start stages of pipeline
-    'result' returns next data
-        ListFolderResult(
-        entries=[FileMetadata, FolderMetadata, DeletedMetadata],
-        cursor="AAM123...",
-        has_more=True
+    Connects to Dropbox and syncs file changes (.fit files) to GCS.
+    Handles both initial sync and delta syncs using a cursor.
     """
     print("Sync Dropbox → GCS starts")
     dbx = auth_dropbox()
     cursor = load_cursor()
-    print(f"Cursor: {cursor}")
 
-    # Get lisf of changes
-    if cursor:
-        result = dbx.files_list_folder_continue(cursor)
-        print("Continue with cursor")
-    else:
-        result = dbx.files_list_folder(path=config.DROPBOX_WATCHED_FOLDER, recursive=True)
-        print("Start from empty file")
+    folder_path = config.DROPBOX_WATCHED_FOLDER  # e.g., "/Apps/WahooFitness"
+    all_entries = []
 
-    # Filtering only .fit files from certain folder
+    try:
+        # 1. GET ALL CHANGES (either delta or initial)
+        if cursor:
+            # DELTA SYNC: We have a cursor, get changes since then
+            print(f"Continuing sync with cursor: {cursor[:15]}...")
+            result = dbx.files_list_folder_continue(cursor)
+            all_entries.extend(result.entries)
+
+            # <-- FIX: Added pagination loop for delta sync
+            while result.has_more:
+                print("Fetching more changes...")
+                result = dbx.files_list_folder_continue(result.cursor)
+                all_entries.extend(result.entries)
+
+            # The new cursor is from the last page of changes
+            new_cursor = result.cursor
+
+        else:
+            # INITIAL SYNC: No cursor, list all files
+            print(f"No cursor found. Starting initial sync of: {folder_path}...")
+            result = dbx.files_list_folder(path=folder_path, recursive=True)
+            all_entries.extend(result.entries)
+
+            # <-- FIX: Pagination loop for initial list
+            while result.has_more:
+                print("Folder is large. Fetching more files...")
+                result = dbx.files_list_folder_continue(result.cursor)
+                all_entries.extend(result.entries)
+
+            # <-- FIX: Get the *correct* cursor for future changes
+            print("Getting latest cursor for future changes...")
+            latest_cursor_result = dbx.files_list_folder_get_latest_cursor(
+                path=folder_path,
+                recursive=True,
+                include_deleted=True
+            )
+            new_cursor = latest_cursor_result.cursor
+
+    except dropbox.exceptions.ApiError as e:
+        if e.error.is_path() and e.error.get_path().is_not_found():
+            print(f"Error: Path '{folder_path}' not found. Check capitalization.")
+        elif e.error.is_path_reset():
+            print("Cursor is invalid (folder moved/renamed?). Restarting with full sync.")
+            save_cursor(None)  # Clear bad cursor
+            # You might want to re-run or alert here
+        else:
+            print(f"Error: {e}")
+        return False
+
+    # 2. PROCESS ALL GATHERED ENTRIES
+    if not all_entries:
+        print("No new changes found.")
+        # We still save the new cursor to mark the "check" as complete
+        if 'new_cursor' in locals():
+            save_cursor(new_cursor)
+        return True  # Not an error, just no work
+
+    print(f"\n--- Processing {len(all_entries)} total entries ---")
+
+    # <-- FIX: Handle both new/modified files and deletions
     fit_entries = [
-        entry for entry in result.entries
+        entry for entry in all_entries
         if isinstance(entry, FileMetadata)
-           and entry.path_lower.startswith("/apps/wahoofitness/")
+           and entry.path_lower.startswith("/apps/activities")  # Your filter
            and entry.name.endswith(".fit")
     ]
+
+    deleted_entries = [
+        entry for entry in all_entries
+        if isinstance(entry, DeletedMetadata)
+           and entry.path_lower.startswith("/apps/activities")  # Your filter
+           and entry.name.endswith(".fit")
+    ]
+
+    # 3. EXECUTE ACTIONS
+    processed_files = False
+
+    if deleted_entries:
+        print(f"Found {len(deleted_entries)} deleted .fit files. Removing from GCS...")
+        handle_deletions_in_gcs(deleted_entries)
+        processed_files = True
+
     if fit_entries:
+        print(f"Found {len(fit_entries)} new/modified .fit files. Syncing to GCS...")
         files = download_fit_files_from_dropbox(fit_entries, dbx)
-        copied_files = upload_fit_files_to_gcs(files, result.cursor)
+
+        # <-- FIX: Don't pass cursor to GCS function
+        copied_files = upload_fit_files_to_gcs(files)
+
         print(f"Copied {copied_files} .fit files to GCS")
-        run_pipeline_on_gcs(
-            config.GCS_BUCKET_NAME,
-            config.GSC_ORIG_FIT_FOLDER,
-            config.MAINFEST_GSC_PATH
-        )
-        return True
-    else:
-        print(f"No .fit files found in {config.DROPBOX_WATCHED_FOLDER}")
-        return False
+
+        # Only run pipeline if new files were actually copied
+        if copied_files > 0:
+            run_pipeline_on_gcs(
+                config.GCS_BUCKET_NAME,
+                config.GSC_ORIG_FIT_FOLDER,
+                config.MAINFEST_GSC_PATH
+            )
+        processed_files = True
+
+    if not processed_files:
+        print("No relevant .fit file changes found.")
+
+    # 4. <-- FIX: SAVE THE NEW CURSOR
+    # This is the most important step!
+    save_cursor(new_cursor)
+    print(f"Sync complete. New cursor saved: {new_cursor[:15]}...")
+    return True
+
+
+connect_to_dropbox()

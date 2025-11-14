@@ -3,7 +3,7 @@ import io
 import logging
 import os
 from project_env import config
-from gcs.client import get_bucket
+from gcp_actions.client import get_bucket
 from dropbox.files import FileMetadata #add types, instead dropbox.files.FileMetadata, use only Fi.
 from dropbox_usage.get_from_dropbox import auth_dropbox
 from flask import jsonify

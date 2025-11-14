@@ -6,8 +6,8 @@ import os
 import re
 import json
 from project_env import config
-from gcs.client import get_bucket
-from gcs.blob_manipulation import upload_blob_from_file, download_blob_if_exists, delete_blob
+from gcp_actions.client import get_bucket
+from gcp_actions.blob_manipulation import upload_to_gcp_bucket, download_from_gcp_bucket, delete_blob
 
 bucket = get_bucket()
 
@@ -45,7 +45,7 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
     gpx_gcs_path: if enable functional for delete GPX file after append to heatmap and GIS analyze (coming soon)
     """
     max_compose = 32
-    print("Start")
+    print("Start append via compose")
     # Forming name list for branch
     branch = chose_branch(bike_model)
     if branch is None:
@@ -62,7 +62,7 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
 
     # Load state of number cycles
     local_state_path = f"/tmp/{compose_name}"
-    state_blob = download_blob_if_exists(state_blob_name,local_state_path)
+    state_blob = download_from_gcp_bucket(state_blob_name,local_state_path, "blob")
     #state_blob = bucket.blob(state_blob_name)     delete
     #if state_blob.exists():  delete
     if state_blob:
@@ -82,7 +82,7 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
 
     # Loading index
     indexed_dates = set()
-    if download_blob_if_exists(index_blob_name, local_index_path):
+    if download_from_gcp_bucket(index_blob_name, local_index_path, "blob"):
         with open(local_index_path, "r", encoding="utf-8") as f:
             indexed_dates = set(line.strip() for line in f)
 
@@ -105,7 +105,7 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
     strip_source_content(local_gpx)
 
     # Loaded fragment to bucket
-    upload_blob_from_file(fragment_blob_name, local_gpx)
+    upload_to_gcp_bucket(fragment_blob_name, local_gpx, "filename")
 
     # Union
     fragment_blob = bucket.blob(fragment_blob_name)
@@ -121,7 +121,7 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
             f.write("""<?xml version="1.0" encoding="UTF-8"?>
         <gpx version="1.1" creator="SPipeline">
          """)
-        upload_blob_from_file(main_blob_name, main_blob_path)
+        upload_to_gcp_bucket(main_blob_name, main_blob_path, "filename")
         print(f"Heatmap file created:'{main_blob_name}'.")
 
     main_blob.compose([main_blob, fragment_blob])
@@ -150,12 +150,12 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
     }
     with open(local_state_path, "w", encoding="utf-8") as f:
         json.dump(state, f)
-    upload_blob_from_file(state_blob_name, local_state_path)
+    upload_to_gcp_bucket(state_blob_name, local_state_path, "filename")
     # state_blob.upload_from_filename(local_state_path) delete
     print(f"State updated: compose_count={compose_count}, version={version}")
 
     # Upload updating index in bucket
-    upload_blob_from_file(index_blob_name, local_index_path)
+    upload_to_gcp_bucket(index_blob_name, local_index_path, "filename")
 
     # Delete fragment
     delete_blob(fragment_blob_name)
@@ -165,4 +165,3 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
     # delete_blob(gpx_gcs_path)
     # print(f"GPX '{gpx_gcs_path}' deleting after union.")
 
-append_gpx_via_compose("tmp/20251019 - 1.gpx", 'b0000000')

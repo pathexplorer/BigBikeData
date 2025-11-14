@@ -3,17 +3,24 @@ Run before Fit file will be uploaded to strava
 """
 import time
 import requests
-from gcs.google_secret_manager import get_secret, update_secret
+from project_env import config
+
+from gcp_actions.secret_manager import SecretManagerClient
+
+sm = SecretManagerClient(config.GCP_PROJECT_ID, config.s_email_strava)
+secret_complex_name = config.SEC_STRAVA
+secrets_dict = sm.get_secret_json(secret_complex_name)
+
 
 def update_strava_token_if_needed():
-    client_id = get_secret("strava-client-id")
-    client_secret = get_secret("strava-client-secret")
-    refresh_token = get_secret("strava-refresh-token")
-    expires_at = int(get_secret("strava-expires-at"))  # stored as Unix timestamp
+    client_id = secrets_dict.get("STRAVA_APP_ID")
+    client_secret = secrets_dict.get("STRAVA_CLIENT_SECRET")
+    refresh_token = secrets_dict.get("STRAVA_REFRESH_TOKEN")
 
+    expires_at = int(secrets_dict.get("EXPIRES_AT"))  # stored as Unix timestamp
     now = int(time.time())
     if now < expires_at - 300:  # 5 minutes buffer
-        return get_secret("strava-access-token")
+        return secrets_dict.get("STRAVA_ACCESS_TOKEN")
 
     # Token is expiring, updating
     url = "https://www.strava.com/oauth/token"
@@ -29,10 +36,20 @@ def update_strava_token_if_needed():
     token_data = response.json()
 
     # Saving access_token and expires_at
-    update_secret("strava-access-token", token_data["access_token"])
-    update_secret("strava-expires-at", str(token_data["expires_at"]))
+
+    if "STRAVA_ACCESS_TOKEN" in secrets_dict:
+        secrets_dict["STRAVA_ACCESS_TOKEN"] = token_data["access_token"]
+
+    # 2. Update the expiration timestamp, ensuring it is converted to a string
+    if "EXPIRES_AT" in secrets_dict:
+        # Use str() to enforce the required type for the JSON field value
+        secrets_dict["EXPIRES_AT"] = str(token_data["expires_at"])
+
+
+    sm.update_secret_json(secret_complex_name, secrets_dict)
 
     # Saving refresh_token only if it changes
     if token_data["refresh_token"] != refresh_token:
-        update_secret("strava-refresh-token", token_data["refresh_token"])
+        secrets_dict["STRAVA_REFRESH_TOKEN"] = token_data["refresh_token"]
+        sm.update_secret_json(secret_complex_name, secrets_dict)
     return token_data["access_token"]

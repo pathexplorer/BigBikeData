@@ -4,6 +4,7 @@ bp1 = Blueprint("upload", __name__)
 
 @bp1.route("/upload_custom_files_session", methods=["POST"])
 def trigger_upload():
+    print("Uploading custom files session")
     data = request.get_json(force=True)
     gcs_folder = data.get("gcs_folder")
     if not gcs_folder:

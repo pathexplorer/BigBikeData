@@ -4,14 +4,21 @@ Base setting for first run
 from flask import Flask, redirect, request, jsonify
 import requests
 from project_env import config
-from gcs.google_secret_manager import get_secret
+
+from gcp_actions.secret_manager import SecretManagerClient
+
+sm = SecretManagerClient(config.GCP_PROJECT_ID, config.s_email_strava)
 
 app = Flask(__name__)
 
 # Credentials
-CLIENT_ID = get_secret("STRAVA_CLIENT_ID")
-CLIENT_SECRET = get_secret("STRAVA_SECRET")
+secrets_dict = sm.get_secret_json(config.SEC_STRAVA)
+
+CLIENT_ID = secrets_dict.get("STRAVA_APP_ID")
+CLIENT_SECRET = secrets_dict.get("STRAVA_CLIENT_SECRET")
+
 REDIRECT_URI = config.STRAVA_REDIRECT_URI
+
 
 @app.route("/")
 def home():

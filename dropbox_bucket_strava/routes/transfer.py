@@ -5,6 +5,7 @@ bp2 = Blueprint("transfer", __name__)
 
 @bp2.route('/webhook', methods=['GET', 'POST'])
 def webhook():
+    print("Webhook received. A file change was detected")
 # GET: Used by Dropbox to verify the webhook endpoint.
 # POST: Receives notifications about file changes.
     if request.method == 'GET':

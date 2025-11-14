@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 from google.cloud.exceptions import NotFound
 from workshop.workers import union_pipeline
-from gcs.client import get_bucket
+from gcp_actions.client import get_bucket
 
 bucket = get_bucket()
 
