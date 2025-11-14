@@ -63,8 +63,6 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
     # Load state of number cycles
     local_state_path = f"/tmp/{compose_name}"
     state_blob = download_from_gcp_bucket(state_blob_name,local_state_path, "blob")
-    #state_blob = bucket.blob(state_blob_name)     delete
-    #if state_blob.exists():  delete
     if state_blob:
         #state_blob.download_to_filename(local_state_path) delete
         with open(local_state_path, "r", encoding="utf-8") as f:
