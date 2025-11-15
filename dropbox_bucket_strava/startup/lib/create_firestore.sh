@@ -1,7 +1,5 @@
 #!/bin/bash
 
-
-
 create_firestore() {
 local region=$1
 echo "[i] Checking for existing Firestore database..."

@@ -45,3 +45,4 @@ def clean_gps(input_path, output_path):
     with open(output_path, 'w', encoding='utf-8') as outfile:
         outfile.writelines(cleaned_lines)
     return bike_model
+

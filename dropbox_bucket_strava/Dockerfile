@@ -1,4 +1,4 @@
-FROM python:3.11
+FROM python:3.12
 
 # istall Java
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y --no-install-recommends \
@@ -17,7 +17,12 @@ WORKDIR $APP_HOME
 COPY . ./
 
 # Install production dependencies.
-RUN pip install --no-cache-dir --disable-pip-version-check --no-warn-script-location -r requirements.txt
+RUN pip install \
+    --no-cache-dir \
+    --disable-pip-version-check \
+    --no-warn-script-location \
+    --root-user-action=ignore \
+    -r requirements.txt
 
 # Run the web server on container startup.
 # Gunicorn is a production-ready WSGI server.

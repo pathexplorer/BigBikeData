@@ -10,11 +10,11 @@ create_configuration() {
   echo "Now you must be login in your default browser in your google account, which use in Google Cloud"
   echo "Browser opens automatically, click at all necessary buttons. Also, it need sto do twice, dont worry"
   echo "Press any key to continue..."
-  #read -r -n 1 -s
-  #gcloud config configurations create "$name_config"
-  #gcloud auth login
+  read -r -n 1 -s
+  gcloud config configurations create "$name_config"
+  gcloud auth login
   gcloud config set project "$project_name"
   gcloud config set compute/region "$project_region"
-  #gcloud auth application-default login
+  gcloud auth application-default login
 }
 

@@ -236,3 +236,6 @@ def connect_to_dropbox():
     save_cursor(new_cursor)
     print(f"Sync complete. New cursor saved: {new_cursor[:15]}...")
     return True
+
+if __name__ == "__main__":
+    connect_to_dropbox()
