@@ -94,11 +94,12 @@ API_LIST=(
 RESOURCE_SEC_ROLES=(
  roles/secretmanager.admin
 )
-
-
-
-TEMP_ROLE="roles/iam.serviceAccountTokenCreator"
-
+IMPERSONATION_ROLES=(
+roles/iam.serviceAccountUser
+)
+TEMP_ROLES=(
+roles/iam.serviceAccountTokenCreator
+)
 
 REQUIRED_VARS=(
 "REGION"
@@ -122,7 +123,6 @@ ENABLE_CONF_CREATE=true
 ENABLE_BUCKET_SETUP=true
 ENABLE_CREATE_SA=true
 ENABLE_BIND_PROJ_ROLE_TO_SA=true
-ENABLE_SA_BINDING_VERIF=true
 ENABLE_JSON_CREATE=true
 ENABLE_SECRETS=true
 ENABLE_CREATE_ART_REG_REPO=true
@@ -212,6 +212,7 @@ run_stage "stage_5_CREATE_SA"
 stage_6_BIND_PROJ_ROLE_TO_SA() {
     COMPUTE_ACCOUNT="${GCP_PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
     if [[ "$ENABLE_BIND_PROJ_ROLE_TO_SA" == "true" ]]; then
+        # Setup main service account
         assign_roles_to_run_service_acc \
           "$SA_EMAIL_3" \
           "serviceAccount" \
@@ -225,12 +226,14 @@ stage_6_BIND_PROJ_ROLE_TO_SA() {
           "projects" \
           "$GEN_NAME_PROJECT" \
           "${ROLES_COMPUTE_ACCOUNT[@]}"
+        # For push dockerfiles to Artifact Registry from local machine (by user personality)
         assign_roles_to_run_service_acc \
           "$MY_USER_ACCOUNT" \
           "user" \
           "projects" \
           "$GEN_NAME_PROJECT" \
           "${ROLES_USER_ACCOUNT[@]}"
+        # 1\2 Create possibility use certain service account for access to certain secret
         assign_roles_to_run_service_acc \
           "$SA_EMAIL_1" \
           "serviceAccount" \
@@ -243,6 +246,48 @@ stage_6_BIND_PROJ_ROLE_TO_SA() {
           "secrets" \
           "$SEC_STRAVA" \
           "${RESOURCE_SEC_ROLES[@]}"
+        # 2\2 Grant to service accounts to do form person main service account
+        assign_roles_to_run_service_acc \
+          "$SA_EMAIL_3" \
+          "serviceAccount" \
+          "iam service-accounts" \
+          "$SA_EMAIL_1" \
+          "${IMPERSONATION_ROLES[@]}"
+        assign_roles_to_run_service_acc \
+          "$SA_EMAIL_3" \
+          "serviceAccount" \
+          "iam service-accounts" \
+          "$SA_EMAIL_2" \
+          "${IMPERSONATION_ROLES[@]}"
+        # template grant role to dropbox and strava
+        assign_roles_to_run_service_acc \
+          "$MY_USER_ACCOUNT" \
+          "user" \
+          "iam service-accounts" \
+          "$SA_EMAIL_1" \
+          "${TEMP_ROLES[@]}"
+        assign_roles_to_run_service_acc \
+          "$MY_USER_ACCOUNT" \
+          "user" \
+          "iam service-accounts" \
+          "$SA_EMAIL_2" \
+          "${TEMP_ROLES[@]}"
+        # Wait 10 seconds for binding roles
+        wait_and_counting_sheep "40"
+        run_with_retry \
+          sa_binding_verif \
+          "$SA_NAME_DROPBOX" \
+          "$SA_NAME_STRAVA" \
+          "$SEC_DROPBOX" \
+          "$SEC_STRAVA" \
+          "$SA_EMAIL_1" \
+          "$SA_EMAIL_2"
+        if [ $? -ne 0 ]; then exit 1; fi
+        remove_the_token_creator_role \
+          "$SA_EMAIL_1" \
+          "$SA_EMAIL_2" \
+          "$MY_USER_ACCOUNT"
+
     fi
 }
 run_stage "stage_6_BIND_PROJ_ROLE_TO_SA"
@@ -283,33 +328,6 @@ stage_9_CREATE_ART_REG_REPO() {
   fi
 }
 run_stage "stage_9_CREATE_ART_REG_REPO"
-
-
-stage_10_SA_BINDING_VERIF() {
-if [[ "$ENABLE_SA_BINDING_VERIF" == "true" ]]; then
-    run_with_retry \
-        grant_the_token_creator_role \
-        "$SA_EMAIL_1" \
-        "$SA_EMAIL_2" \
-        "$MY_USER_ACCOUNT" \
-        "$TEMP_ROLE" \
-        "$GEN_NAME_PROJECT"
-    if [ $? -ne 0 ]; then exit 1; fi
-    # Wait 10 seconds for binding roles
-    wait_and_counting_sheep "40"
-        run_with_retry \
-          sa_binding_verif \
-          "$SA_NAME_DROPBOX" \
-          "$SA_NAME_STRAVA" \
-          "$SEC_DROPBOX" \
-          "$SEC_STRAVA" \
-          "$SA_EMAIL_1" \
-          "$SA_EMAIL_2"
-        if [ $? -ne 0 ]; then exit 1; fi
-    remove_the_token_creator_role "$SA_EMAIL_1" "$SA_EMAIL_2" "$MY_USER_ACCOUNT"
-fi
-}
-run_stage "stage_10_SA_BINDING_VERIF"
 
 
 stage_11_JSON_CREATE() {
