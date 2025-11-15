@@ -1,7 +1,5 @@
 #!/bin/bash
 ## Cleanup (Optional)
-
-
  function cleanup {
    echo "Cleaning up resources..."
    gcloud secrets delete $SEC_DROPBOX --quiet

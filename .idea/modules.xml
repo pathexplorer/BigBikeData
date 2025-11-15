@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/BigBikeData.iml" filepath="$PROJECT_DIR$/.idea/BigBikeData.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../fit2gpx/.idea/fit2gpx.iml" filepath="$PROJECT_DIR$/../fit2gpx/.idea/fit2gpx.iml" />
       <module fileurl="file://$PROJECT_DIR$/../gcp_actions_ns/.idea/gcloud_helpers.iml" filepath="$PROJECT_DIR$/../gcp_actions_ns/.idea/gcloud_helpers.iml" />
     </modules>
   </component>

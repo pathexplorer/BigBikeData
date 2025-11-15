@@ -9,5 +9,6 @@
     <orderEntry type="jdk" jdkName="Python 3.10 virtualenv at ~/Dropbox/projects/BigBikeData/venv" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="gcloud_helpers" />
+    <orderEntry type="module" module-name="fit2gpx" />
   </component>
 </module>

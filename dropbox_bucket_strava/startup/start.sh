@@ -30,14 +30,6 @@ else
     echo "🯀 ERROR: Environment file not found at $ENV_FILE. Aborting script."
     exit 1
 fi
-#ENV_FILE="$VIRTUAL_ENV/../dropbox_bucket_strava/project_env/keys.env"
-#if [ -f "$ENV_FILE" ]; then
-#    echo "Loading project environment variables..."
-#    export $(grep -v '^#' "$ENV_FILE" | xargs)
-#else
-#    echo "🯀 ERROR: Environment file not found at $ENV_FILE. Aborting script."
-#    exit 1
-#fi
 
 # gatekeeper1 start
 STATE_FILE="script_progress.log"
@@ -78,8 +70,6 @@ load_variables_to_main "addons"
 
 # --- Configuration & Validation  ---
 
-
-
 ROLES_SA_RUN=(
  roles/storage.objectAdmin
  roles/pubsub.serviceAgent
@@ -91,6 +81,10 @@ ROLES_SA_RUN=(
 ROLES_USER_ACCOUNT=(
  roles/artifactregistry.writer
 )
+ROLES_COMPUTE_ACCOUNT=(
+ roles/run.admin
+)
+
 API_LIST=(
  secretmanager.googleapis.com
  compute.googleapis.com
@@ -98,13 +92,9 @@ API_LIST=(
  firestore.googleapis.com
  cloudbuild.googleapis.com
  run.googleapis.com
-
 )
 
-
-
 TEMP_ROLE="roles/iam.serviceAccountTokenCreator"
-
 
 REQUIRED_VARS=(
 "REGION"
@@ -128,15 +118,12 @@ ENABLE_CONF_CREATE=true
 ENABLE_BUCKET_SETUP=true
 ENABLE_CREATE_SA=true
 ENABLE_BIND_PROJ_ROLE_TO_SA=true
-ENABLE_BIND_PROJ_ROLE_TO_USER=true
 ENABLE_SA_BINDING_VERIF=true
 ENABLE_JSON_CREATE=true
 ENABLE_SECRETS=true
 ENABLE_BIND_RES_ROLE_TO_SA=true
 ENABLE_CREATE_ART_REG_REPO=true
 ENABLE_FIRESTORE_CREATE=true
-
-
 
 stage_1_CREATE_PROJECT() {
         if [[ "$ENABLE_CREATE_PROJECT" == "true" ]]; then
@@ -181,6 +168,8 @@ stage_3_CONF_CREATE() {
         if [[ "$ENABLE_CONF_CREATE" == "true" ]]; then
         # Reusable universal method
         create_configuration "$GCONFIG_NAME" "$GEN_NAME_PROJECT" "$REGION"
+        PROJECT_NUMBER=$(gcloud projects describe "$(gcloud config get-value project)" --format="value(projectNumber)")
+        echo "GCP_PROJECT_NUMBER=${PROJECT_NUMBER}" >> names.env
         fi
         }
 run_stage "stage_3_CONF_CREATE"
@@ -208,7 +197,6 @@ stage_4_BUCKET_SETUP() {
 timer_pause
 run_stage "stage_4_BUCKET_SETUP"
 
-
 stage_5_CREATE_SA() {
     if [[ "$ENABLE_CREATE_SA" == "true" ]]; then
         check_and_create_sa "$SA_NAME_DROPBOX" "$SA_EMAIL_1" "Dropbox Service Account"
@@ -219,35 +207,34 @@ stage_5_CREATE_SA() {
 run_stage "stage_5_CREATE_SA"
 
 stage_6_BIND_PROJ_ROLE_TO_SA() {
+    COMPUTE_ACCOUNT="${GCP_PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
     if [[ "$ENABLE_BIND_PROJ_ROLE_TO_SA" == "true" ]]; then
-        assign_roles_to_run_service_acc "$SA_EMAIL_3" "${ROLES_SA_RUN[@]}"
+        assign_roles_to_run_service_acc "$SA_EMAIL_3" "serviceAccount" "${ROLES_SA_RUN[@]}"
+
+        # for set --allow-unauthorization in step in Cloud Bild
+        assign_roles_to_run_service_acc "$COMPUTE_ACCOUNT" "serviceAccount" "${ROLES_COMPUTE_ACCOUNT[@]}"
+
+        assign_roles_to_run_service_acc "$MY_USER_ACCOUNT" "user" "${ROLES_USER_ACCOUNT[@]}"
+
     fi
 }
 run_stage "stage_6_BIND_PROJ_ROLE_TO_SA"
 
-stage_6_1_SECRETS() {
+stage_7_SECRETS() {
 if [[ "$ENABLE_SECRETS" == "true" ]]; then
     check_and_create_secret "$SEC_DROPBOX" "secret-data-for-app-1" "dropbox"
     check_and_create_secret "$SEC_STRAVA" "secret-data-for-app-2" "strava"
 fi
 }
-run_stage "stage_6_1_SECRETS"
+run_stage "stage_7_SECRETS"
 
-stage_7_BIND_RES_ROLE_TO_SA() {
+stage_8_BIND_RES_ROLE_TO_SA() {
   if [[ "$ENABLE_BIND_RES_ROLE_TO_SA" == "true" ]]; then
       binding_resource_level "$SA_EMAIL_1" "$SEC_DROPBOX" "$SA_NAME_DROPBOX"
       binding_resource_level "$SA_EMAIL_2" "$SEC_STRAVA" "$SA_NAME_STRAVA"
   fi
 }
-run_stage "stage_7_BIND_RES_ROLE_TO_SA"
-
-
-stage_8_BIND_PROJ_ROLE_TO_USER() {
-if [[ "$ENABLE_BIND_PROJ_ROLE_TO_USER" == "true" ]]; then
-    assign_roles_to_user "$MY_USER_ACCOUNT" "${ROLES_USER_ACCOUNT[@]}"
-fi
-}
-run_stage "stage_8_BIND_PROJ_ROLE_TO_USER"
+run_stage "stage_8_BIND_RES_ROLE_TO_SA"
 
 stage_9_CREATE_ART_REG_REPO() {
   if [[ "$ENABLE_CREATE_ART_REG_REPO" == "true" ]]; then
@@ -322,31 +309,11 @@ fi
 }
 run_stage "stage_12_FIRESTORE_CREATE"
 
-
-
-
-
-
 echo "------------------------------------------------"
 echo "🎉 Setup is complete and correct."
 echo "------------------------------------------------"
 timer_pause
 echo "Total Execution Time (excluding user pauses): ${TIMER_TOTAL_SECONDS} seconds"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # read -p "Do you want to clean up (delete) these resources? (y/N) " -n 1 -r
 # echo
