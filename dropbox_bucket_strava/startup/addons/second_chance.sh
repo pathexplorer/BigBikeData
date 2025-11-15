@@ -1,5 +1,5 @@
 #!/bin/bash
-# Resusable
+# Reusable
 
 
 # Base code
@@ -54,5 +54,5 @@ run_with_retry() {
 #run_with_retry
 #  function \
 #  "first argument of function 1" \
-#  "secont argument of function 1"
+#  "second argument of function 1"
 #if [ $? -ne 0 ]; then exit 1; fi

@@ -59,20 +59,8 @@ run_stage() {
 #    return 0 # Success
 #}
 
-#stage_3() {
-#    echo
-#    return 0 # Success
-#}
-
-#stage_4() {
-#    echo
-#    return 0 # Success
-#}
-
 ## Run each stage through the "switcher"
 #run_stage "stage_1"
 #run_stage "stage_2"
-#run_stage "stage_3"
-#run_stage "stage_4"
 
 #echo "🮱 All stages completed successfully."
