@@ -1,2 +1,0 @@
-![Scheme](docs/Scheme.png
-)
