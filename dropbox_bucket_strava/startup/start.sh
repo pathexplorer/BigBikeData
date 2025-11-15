@@ -1,18 +1,4 @@
 #!/bin/bash
-# start.sh - The central control file
-echo "------------------------------------------------"
-echo "------------WELCOME---------------------"
-echo "------------------------------------------------"
-echo "CHECKLIST:"
-echo "1.Verify variables..."
-echo "1.Create configuration in Google CLI..."
-echo "2.Enable API's"
-echo "3.Create bucket"
-echo "4.Create service accounts"
-echo "5.Get JSON credential"
-echo "Press any key to continue..."
-
-read -r -n 1 -s
 
 set -e # Stop the script if any command fails
 # --- load environment file ---
@@ -43,7 +29,6 @@ if [ "$1" == "reset" ]; then
     > "$STATE_FILE" # This clears the file
 fi
 # gatekeeper1 end
-
 
 # --- Sourcing Modules (Libraries) ---
 echo "Loading dependencies..."
@@ -82,7 +67,6 @@ ROLES_USER_ACCOUNT=(
 ROLES_COMPUTE_ACCOUNT=(
  roles/run.admin
 )
-
 API_LIST=(
  secretmanager.googleapis.com
  compute.googleapis.com
@@ -115,37 +99,21 @@ REQUIRED_VARS=(
 )
 check_required_variables "${REQUIRED_VARS[@]}"
 
-# MANAGEMENT DASHBOARD"
-
-ENABLE_CREATE_PROJECT=false
-ENABLE_ON_API=true
-ENABLE_CONF_CREATE=true
-ENABLE_BUCKET_SETUP=true
-ENABLE_CREATE_SA=true
-ENABLE_BIND_PROJ_ROLE_TO_SA=true
-ENABLE_JSON_CREATE=true
-ENABLE_SECRETS=true
-ENABLE_CREATE_ART_REG_REPO=true
-ENABLE_FIRESTORE_CREATE=true
-
 stage_1_CREATE_PROJECT() {
-        if [[ "$ENABLE_CREATE_PROJECT" == "true" ]]; then
-            echo "=== Building GCP Project Name ==="
-            project_prompts=("Org/App Prefix" "Descriptive Name")
-            run_generation_loop \
-                build_resource_name \
-                "Project" \
-                "9" \
-                '${PREFIX_1}-${PREFIX_2}' \
-                "${project_prompts[@]}"
-            echo "✅ Script continued successfully after retry."
-            timer_start
-            GEN_NAME_PROJECT="$GENERATED_NAME"
-            export GEN_NAME_PROJECT
-            create_gcp_project "$GEN_NAME_PROJECT"
-            echo "GCP_PROJECT_ID=${GEN_NAME_PROJECT}" >> names.env
-        fi
-        return 0
+      echo "=== Building GCP Project Name ==="
+      project_prompts=("Org/App Prefix" "Descriptive Name")
+      run_generation_loop \
+          build_resource_name \
+          "Project" \
+          "9" \
+          '${PREFIX_1}-${PREFIX_2}' \
+          "${project_prompts[@]}"
+      echo "✅ Script continued successfully after retry."
+      timer_start
+      GEN_NAME_PROJECT="$GENERATED_NAME"
+      export GEN_NAME_PROJECT
+      create_gcp_project "$GEN_NAME_PROJECT"
+      echo "GCP_PROJECT_ID=${GEN_NAME_PROJECT}" >> names.env
 }
 timer_pause
 run_stage "stage_1_CREATE_PROJECT"
@@ -154,155 +122,137 @@ SA_EMAIL_1="${SA_NAME_DROPBOX}@${GEN_NAME_PROJECT}.iam.gserviceaccount.com"
 SA_EMAIL_2="${SA_NAME_STRAVA}@${GEN_NAME_PROJECT}.iam.gserviceaccount.com"
 SA_EMAIL_3="${SA_NAME_RUN}@${GEN_NAME_PROJECT}.iam.gserviceaccount.com"
 
-
 stage_2_ENABLE_ON_API() {
-        # --- 3. Execution Sequence (Use functions from sourced files) ---
-        if [[ "$ENABLE_ON_API" == "true" ]]; then
-            run_with_retry \
-                enable_gcp_apis \
-                "$GEN_NAME_PROJECT" \
-                "${API_LIST[@]}"
-            if [ $? -ne 0 ]; then exit 1; fi
-        fi
+      # --- 3. Execution Sequence (Use functions from sourced files) ---
+      run_with_retry \
+          enable_gcp_apis \
+          "$GEN_NAME_PROJECT" \
+          "${API_LIST[@]}"
 }
 run_stage "stage_2_ENABLE_ON_API"
 
 stage_3_CONF_CREATE() {
-        if [[ "$ENABLE_CONF_CREATE" == "true" ]]; then
-        # Reusable universal method
-        create_configuration "$GCONFIG_NAME" "$GEN_NAME_PROJECT" "$REGION"
-        PROJECT_NUMBER=$(gcloud projects describe "$(gcloud config get-value project)" --format="value(projectNumber)")
-        echo "GCP_PROJECT_NUMBER=${PROJECT_NUMBER}" >> names.env
-        fi
-        }
+      # Reusable universal method
+      create_configuration "$GCONFIG_NAME" "$GEN_NAME_PROJECT" "$REGION"
+      PROJECT_NUMBER=$(gcloud projects describe "$(gcloud config get-value project)" --format="value(projectNumber)")
+      echo "GCP_PROJECT_NUMBER=${PROJECT_NUMBER}" >> names.env
+}
 run_stage "stage_3_CONF_CREATE"
 
-
 stage_4_BUCKET_SETUP() {
-        if [[ "$ENABLE_BUCKET_SETUP" == "true" ]]; then
-        # Reusable universal method
-            echo "=== Building GCP Bucket Name ==="
-            bucket_prompts=("Org/App Prefix" "Data Layer Descriptive" "Project or Team Descriptive")
-            run_generation_loop \
-                build_resource_name \
-                "Bucket" \
-                "18" \
-                '${PREFIX_3}' \
-                "${bucket_prompts[@]}"
-            timer_start
-            GEN_NAME_BUCKET="$GENERATED_NAME"
-            export GEN_NAME_BUCKET
-            echo "Exported name ${GEN_NAME_BUCKET}"
-            check_and_create_bucket "$GEN_NAME_BUCKET" "$REGION"
-            echo "GCP_BUCKET_NAME=${GEN_NAME_BUCKET}" >> names.env
-        fi
+      # Reusable universal method
+      echo "=== Building GCP Bucket Name ==="
+      bucket_prompts=("Org/App Prefix" "Data Layer Descriptive" "Project or Team Descriptive")
+      run_generation_loop \
+          build_resource_name \
+          "Bucket" \
+          "18" \
+          '${PREFIX_3}' \
+          "${bucket_prompts[@]}"
+      timer_start
+      GEN_NAME_BUCKET="$GENERATED_NAME"
+      export GEN_NAME_BUCKET
+      echo "Exported name ${GEN_NAME_BUCKET}"
+      check_and_create_bucket "$GEN_NAME_BUCKET" "$REGION"
+      echo "GCP_BUCKET_NAME=${GEN_NAME_BUCKET}" >> names.env
 }
 timer_pause
 run_stage "stage_4_BUCKET_SETUP"
 
 stage_5_CREATE_SA() {
-    if [[ "$ENABLE_CREATE_SA" == "true" ]]; then
-        check_and_create_sa "$SA_NAME_DROPBOX" "$SA_EMAIL_1" "Dropbox Service Account"
-        check_and_create_sa "$SA_NAME_STRAVA" "$SA_EMAIL_2" "Strava Service Account"
-        check_and_create_sa "$SA_NAME_RUN" "$SA_EMAIL_3" "Run Service Account"
-    fi
+      check_and_create_sa "$SA_NAME_DROPBOX" "$SA_EMAIL_1" "Dropbox Service Account"
+      check_and_create_sa "$SA_NAME_STRAVA" "$SA_EMAIL_2" "Strava Service Account"
+      check_and_create_sa "$SA_NAME_RUN" "$SA_EMAIL_3" "Run Service Account"
 }
 run_stage "stage_5_CREATE_SA"
 
 stage_6_BIND_PROJ_ROLE_TO_SA() {
     COMPUTE_ACCOUNT="${GCP_PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-    if [[ "$ENABLE_BIND_PROJ_ROLE_TO_SA" == "true" ]]; then
-        # Setup main service account
-        assign_roles_to_run_service_acc \
-          "$SA_EMAIL_3" \
-          "serviceAccount" \
-          "projects" \
-          "$GEN_NAME_PROJECT" \
-          "${ROLES_SA_RUN[@]}"
-        # for set --allow-unauthorization in step in Cloud Bild
-        assign_roles_to_run_service_acc \
-          "$COMPUTE_ACCOUNT" \
-          "serviceAccount" \
-          "projects" \
-          "$GEN_NAME_PROJECT" \
-          "${ROLES_COMPUTE_ACCOUNT[@]}"
-        # For push dockerfiles to Artifact Registry from local machine (by user personality)
-        assign_roles_to_run_service_acc \
-          "$MY_USER_ACCOUNT" \
-          "user" \
-          "projects" \
-          "$GEN_NAME_PROJECT" \
-          "${ROLES_USER_ACCOUNT[@]}"
-        # 1\2 Create possibility use certain service account for access to certain secret
-        assign_roles_to_run_service_acc \
-          "$SA_EMAIL_1" \
-          "serviceAccount" \
-          "secrets" \
-          "$SEC_DROPBOX" \
-          "${RESOURCE_SEC_ROLES[@]}"
-        assign_roles_to_run_service_acc \
-          "$SA_EMAIL_2" \
-          "serviceAccount" \
-          "secrets" \
-          "$SEC_STRAVA" \
-          "${RESOURCE_SEC_ROLES[@]}"
-        # 2\2 Grant to service accounts to do form person main service account
-        assign_roles_to_run_service_acc \
-          "$SA_EMAIL_3" \
-          "serviceAccount" \
-          "iam service-accounts" \
-          "$SA_EMAIL_1" \
-          "${IMPERSONATION_ROLES[@]}"
-        assign_roles_to_run_service_acc \
-          "$SA_EMAIL_3" \
-          "serviceAccount" \
-          "iam service-accounts" \
-          "$SA_EMAIL_2" \
-          "${IMPERSONATION_ROLES[@]}"
-        # template grant role to dropbox and strava
-        assign_roles_to_run_service_acc \
-          "$MY_USER_ACCOUNT" \
-          "user" \
-          "iam service-accounts" \
-          "$SA_EMAIL_1" \
-          "${TEMP_ROLES[@]}"
-        assign_roles_to_run_service_acc \
-          "$MY_USER_ACCOUNT" \
-          "user" \
-          "iam service-accounts" \
-          "$SA_EMAIL_2" \
-          "${TEMP_ROLES[@]}"
-        # Wait 10 seconds for binding roles
-        wait_and_counting_sheep "40"
-        run_with_retry \
-          sa_binding_verif \
-          "$SA_NAME_DROPBOX" \
-          "$SA_NAME_STRAVA" \
-          "$SEC_DROPBOX" \
-          "$SEC_STRAVA" \
-          "$SA_EMAIL_1" \
-          "$SA_EMAIL_2"
-        if [ $? -ne 0 ]; then exit 1; fi
-        remove_the_token_creator_role \
-          "$SA_EMAIL_1" \
-          "$SA_EMAIL_2" \
-          "$MY_USER_ACCOUNT"
-
-    fi
+    # Setup main service account
+    assign_roles_to_run_service_acc \
+      "$SA_EMAIL_3" \
+      "serviceAccount" \
+      "projects" \
+      "$GEN_NAME_PROJECT" \
+      "${ROLES_SA_RUN[@]}"
+    # for set --allow-unauthorization in step in Cloud Bild
+    assign_roles_to_run_service_acc \
+      "$COMPUTE_ACCOUNT" \
+      "serviceAccount" \
+      "projects" \
+      "$GEN_NAME_PROJECT" \
+      "${ROLES_COMPUTE_ACCOUNT[@]}"
+    # For push dockerfiles to Artifact Registry from local machine (by user personality)
+    assign_roles_to_run_service_acc \
+      "$MY_USER_ACCOUNT" \
+      "user" \
+      "projects" \
+      "$GEN_NAME_PROJECT" \
+      "${ROLES_USER_ACCOUNT[@]}"
+    # 1\2 Create possibility use certain service account for access to certain secret
+    assign_roles_to_run_service_acc \
+      "$SA_EMAIL_1" \
+      "serviceAccount" \
+      "secrets" \
+      "$SEC_DROPBOX" \
+      "${RESOURCE_SEC_ROLES[@]}"
+    assign_roles_to_run_service_acc \
+      "$SA_EMAIL_2" \
+      "serviceAccount" \
+      "secrets" \
+      "$SEC_STRAVA" \
+      "${RESOURCE_SEC_ROLES[@]}"
+    # 2\2 Grant to service accounts to do form person main service account
+    assign_roles_to_run_service_acc \
+      "$SA_EMAIL_3" \
+      "serviceAccount" \
+      "iam service-accounts" \
+      "$SA_EMAIL_1" \
+      "${IMPERSONATION_ROLES[@]}"
+    assign_roles_to_run_service_acc \
+      "$SA_EMAIL_3" \
+      "serviceAccount" \
+      "iam service-accounts" \
+      "$SA_EMAIL_2" \
+      "${IMPERSONATION_ROLES[@]}"
+    # template grant role to dropbox and strava
+    assign_roles_to_run_service_acc \
+      "$MY_USER_ACCOUNT" \
+      "user" \
+      "iam service-accounts" \
+      "$SA_EMAIL_1" \
+      "${TEMP_ROLES[@]}"
+    assign_roles_to_run_service_acc \
+      "$MY_USER_ACCOUNT" \
+      "user" \
+      "iam service-accounts" \
+      "$SA_EMAIL_2" \
+      "${TEMP_ROLES[@]}"
+    # Wait 10 seconds for binding roles
+    wait_and_counting_sheep "40"
+    run_with_retry \
+      sa_binding_verif \
+      "$SA_NAME_DROPBOX" \
+      "$SA_NAME_STRAVA" \
+      "$SEC_DROPBOX" \
+      "$SEC_STRAVA" \
+      "$SA_EMAIL_1" \
+      "$SA_EMAIL_2"
+    if [ $? -ne 0 ]; then exit 1; fi
+    remove_the_token_creator_role \
+      "$SA_EMAIL_1" \
+      "$SA_EMAIL_2" \
+      "$MY_USER_ACCOUNT"
 }
 run_stage "stage_6_BIND_PROJ_ROLE_TO_SA"
 
 stage_7_SECRETS() {
-if [[ "$ENABLE_SECRETS" == "true" ]]; then
     check_and_create_secret "$SEC_DROPBOX" "secret-data-for-app-1" "dropbox"
     check_and_create_secret "$SEC_STRAVA" "secret-data-for-app-2" "strava"
-fi
 }
 run_stage "stage_7_SECRETS"
 
 stage_9_CREATE_ART_REG_REPO() {
-  if [[ "$ENABLE_CREATE_ART_REG_REPO" == "true" ]]; then
-  # Reusable universal method
   # DEPENDENCY: INSTALLED DOCKER
       echo "▶ Running Artifact Registry Setup..."
       # Call the idempotent creation function
@@ -325,30 +275,20 @@ stage_9_CREATE_ART_REG_REPO() {
       else
         echo "   🯀 WARNING: Docker configuration failed. You may not be able to push images."
       fi
-  fi
 }
 run_stage "stage_9_CREATE_ART_REG_REPO"
 
-
 stage_11_JSON_CREATE() {
-if [[ "$ENABLE_JSON_CREATE" == "true" ]]; then
-# Reusable universal method
     create_json_cred "$SA_EMAIL_3" "$GEN_NAME_PROJECT" "$GOOGLE_APPLICATION_CREDENTIALS"
-fi
 }
 run_stage "stage_11_JSON_CREATE"
 
 stage_12_FIRESTORE_CREATE() {
-if [[ "$ENABLE_FIRESTORE_CREATE" == "true" ]]; then
-# Reusable universal method
     create_firestore "$REGION"
-fi
 }
 run_stage "stage_12_FIRESTORE_CREATE"
 
-echo "------------------------------------------------"
-echo "🎉 Setup is complete and correct."
-echo "------------------------------------------------"
+echo "Setup is complete and correct."
 timer_pause
 echo "Total Execution Time (excluding user pauses): ${TIMER_TOTAL_SECONDS} seconds"
 
