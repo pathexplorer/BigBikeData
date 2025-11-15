@@ -69,7 +69,6 @@ load_variables_to_main "lib"
 load_variables_to_main "addons"
 
 # --- Configuration & Validation  ---
-
 ROLES_SA_RUN=(
  roles/storage.objectAdmin
  roles/pubsub.serviceAgent
@@ -77,7 +76,6 @@ ROLES_SA_RUN=(
  roles/secretmanager.admin
  roles/datastore.viewer
 )
-
 ROLES_USER_ACCOUNT=(
  roles/artifactregistry.writer
 )
@@ -93,8 +91,14 @@ API_LIST=(
  cloudbuild.googleapis.com
  run.googleapis.com
 )
+RESOURCE_SEC_ROLES=(
+ roles/secretmanager.admin
+)
+
+
 
 TEMP_ROLE="roles/iam.serviceAccountTokenCreator"
+
 
 REQUIRED_VARS=(
 "REGION"
@@ -121,7 +125,6 @@ ENABLE_BIND_PROJ_ROLE_TO_SA=true
 ENABLE_SA_BINDING_VERIF=true
 ENABLE_JSON_CREATE=true
 ENABLE_SECRETS=true
-ENABLE_BIND_RES_ROLE_TO_SA=true
 ENABLE_CREATE_ART_REG_REPO=true
 ENABLE_FIRESTORE_CREATE=true
 
@@ -209,13 +212,37 @@ run_stage "stage_5_CREATE_SA"
 stage_6_BIND_PROJ_ROLE_TO_SA() {
     COMPUTE_ACCOUNT="${GCP_PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
     if [[ "$ENABLE_BIND_PROJ_ROLE_TO_SA" == "true" ]]; then
-        assign_roles_to_run_service_acc "$SA_EMAIL_3" "serviceAccount" "${ROLES_SA_RUN[@]}"
-
+        assign_roles_to_run_service_acc \
+          "$SA_EMAIL_3" \
+          "serviceAccount" \
+          "projects" \
+          "$GEN_NAME_PROJECT" \
+          "${ROLES_SA_RUN[@]}"
         # for set --allow-unauthorization in step in Cloud Bild
-        assign_roles_to_run_service_acc "$COMPUTE_ACCOUNT" "serviceAccount" "${ROLES_COMPUTE_ACCOUNT[@]}"
-
-        assign_roles_to_run_service_acc "$MY_USER_ACCOUNT" "user" "${ROLES_USER_ACCOUNT[@]}"
-
+        assign_roles_to_run_service_acc \
+          "$COMPUTE_ACCOUNT" \
+          "serviceAccount" \
+          "projects" \
+          "$GEN_NAME_PROJECT" \
+          "${ROLES_COMPUTE_ACCOUNT[@]}"
+        assign_roles_to_run_service_acc \
+          "$MY_USER_ACCOUNT" \
+          "user" \
+          "projects" \
+          "$GEN_NAME_PROJECT" \
+          "${ROLES_USER_ACCOUNT[@]}"
+        assign_roles_to_run_service_acc \
+          "$SA_EMAIL_1" \
+          "serviceAccount" \
+          "secrets" \
+          "$SEC_DROPBOX" \
+          "${RESOURCE_SEC_ROLES[@]}"
+        assign_roles_to_run_service_acc \
+          "$SA_EMAIL_2" \
+          "serviceAccount" \
+          "secrets" \
+          "$SEC_STRAVA" \
+          "${RESOURCE_SEC_ROLES[@]}"
     fi
 }
 run_stage "stage_6_BIND_PROJ_ROLE_TO_SA"
@@ -227,14 +254,6 @@ if [[ "$ENABLE_SECRETS" == "true" ]]; then
 fi
 }
 run_stage "stage_7_SECRETS"
-
-stage_8_BIND_RES_ROLE_TO_SA() {
-  if [[ "$ENABLE_BIND_RES_ROLE_TO_SA" == "true" ]]; then
-      binding_resource_level "$SA_EMAIL_1" "$SEC_DROPBOX" "$SA_NAME_DROPBOX"
-      binding_resource_level "$SA_EMAIL_2" "$SEC_STRAVA" "$SA_NAME_STRAVA"
-  fi
-}
-run_stage "stage_8_BIND_RES_ROLE_TO_SA"
 
 stage_9_CREATE_ART_REG_REPO() {
   if [[ "$ENABLE_CREATE_ART_REG_REPO" == "true" ]]; then
