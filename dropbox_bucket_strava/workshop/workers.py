@@ -6,10 +6,9 @@ from strava.upload import *
 from strava.auth import update_strava_token_if_needed
 from fit2gpx import Converter
 from heatmap_gpx.append_function import append_gpx_via_compose
-import warnings
+
 from workshop.instruments import convert_fit_to_csv, clean_gps
 
-warnings.filterwarnings("ignore", category=UserWarning) # for ignore warn from fit 2 gpx
 conv = Converter()
 bucket_name="GCS_BUCKET_NAME"
 

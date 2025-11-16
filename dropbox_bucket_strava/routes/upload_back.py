@@ -4,7 +4,7 @@ from project_env.config import PRIVATE_UPLOAD_TOKEN
 
 bp1 = Blueprint("upload", __name__)
 
-@bp1.route(f"/${PRIVATE_UPLOAD_TOKEN}", methods=["POST"])
+@bp1.route(f"/{PRIVATE_UPLOAD_TOKEN}", methods=["POST"])
 def trigger_upload():
     print("Uploading custom files session")
     data = request.get_json(force=True)

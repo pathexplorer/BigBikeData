@@ -1,10 +1,6 @@
 import os
-import warnings
 from fit2gpx import Converter
 from datetime import datetime, timezone
-
-# --- External Dependencies (Assumed to be available in project_env) ---
-# NOTE: These are imported globally as they were in the original script.
 from project_env import config
 from gcp_actions.blob_manipulation import upload_to_gcp_bucket, download_from_gcp_bucket
 from gcp_actions.firestore_as_swith import check_swith_status
@@ -14,7 +10,7 @@ from heatmap_gpx.append_function import append_gpx_via_compose
 from workshop.instruments import convert_fit_to_csv, clean_gps
 
 # Initialize global dependencies
-warnings.filterwarnings("ignore", category=UserWarning) # For ignoring warnings from fit2gpx
+
 CONVERTER = Converter()
 
 

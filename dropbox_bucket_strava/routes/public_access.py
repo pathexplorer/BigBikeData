@@ -39,7 +39,7 @@ def handle_file_upload():
         return redirect(url_for('frontend.index'))
 
     file = request.files['file']
-    user_email = request.form('email_address')  # Example of getting other form data
+    user_email = request.form.get('email_address')  # Example of getting other form data
 
     if not user_email:
         flash('Email address is required.')
