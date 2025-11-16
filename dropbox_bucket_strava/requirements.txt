@@ -6,7 +6,7 @@ google-cloud-firestore
 google-cloud-storage
 google-auth
 git+https://github.com/pathexplorer/fit2gpx.git@first
-git+https://github.com/pathexplorer/gcp_actions.git@v.0.1.2
+git+https://github.com/pathexplorer/gcp_actions.git@v.0.1.3
 gpxpy
 numpy
 pandas

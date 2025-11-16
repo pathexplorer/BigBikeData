@@ -1,0 +1,32 @@
+# wahoo.yaml (Revised for Cloud Build substitutions)
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '${_YAML_IMAGE}:v9', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '${_YAML_IMAGE}:v9']
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_CLOUD_RUN_SERVICE}'
+      - '--image=${_YAML_IMAGE}:v9'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--service-account=${_S_ACCOUNT_RUN}'
+      - '--set-env-vars=PRIVATE_ACCESS_TOKEN=${_PRIVATE_ACCESS_TOKEN},PRIVATE_UPLOAD_TOKEN=${_PRIVATE_UPLOAD_TOKEN},GCP_PROJECT_ID=${_GCP_PROJECT_ID},GCS_BUCKET_NAME=${_GCS_BUCKET_NAME},GCS_PUBLIC_BUCKET=${_GCS_PUBLIC_BUCKET},CLOUD_RUN_SERVICE=${_CLOUD_RUN_SERVICE},S_ACCOUNT_DROPBOX=${_S_ACCOUNT_DROPBOX},S_ACCOUNT_STRAVA=${_S_ACCOUNT_STRAVA}'
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Set Public Access'
+    args:
+      - 'run'
+      - 'services'
+      - 'add-iam-policy-binding'
+      - '${_CLOUD_RUN_SERVICE}'
+      - '--member=allUsers'
+      - '--role=roles/run.invoker'
+      - '--region=${_REGION}'
+      - '--project=${_GCP_PROJECT_ID}'
+
+images:
+  - '${_YAML_IMAGE}:v9'
