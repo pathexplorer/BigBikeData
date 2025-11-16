@@ -12,6 +12,7 @@ if IS_LOCAL: # then load .env file
 # GCP credentials
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
+GCS_PUBLIC_BUCKET=os.environ.get("GCS_PUBLIC_BUCKET")
 CLOUD_RUN_SERVICE = os.environ.get("CLOUD_RUN_SERVICE")
 # Dropbox and Strava
 SEC_STRAVA="strava-secrets"
@@ -19,6 +20,8 @@ SEC_DROPBOX="dropbox-secrets"
 s_email_run = os.environ.get("S_ACCOUNT_RUN")
 s_email_dropbox = os.environ.get("S_ACCOUNT_DROPBOX")
 s_email_strava = os.environ.get("S_ACCOUNT_STRAVA")
+PRIVATE_ACCESS_TOKEN=os.environ.get("PRIVATE_ACCESS_TOKEN")
+PRIVATE_UPLOAD_TOKEN=os.environ.get("PRIVATE_UPLOAD_TOKEN")
 DROPBOX_REDIRECT_URI = "http://localhost:5000/oauth/callback"
 STRAVA_REDIRECT_URI="http://localhost:5000/exchange_token"
 # Pathes

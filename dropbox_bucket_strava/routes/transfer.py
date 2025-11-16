@@ -1,9 +1,11 @@
 from flask import Blueprint, request, Response
 from dropbox_usage.get_from_dropbox import check_signature
+from project_env.config import PRIVATE_ACCESS_TOKEN
+
 
 bp2 = Blueprint("transfer", __name__)
 
-@bp2.route('/webhook', methods=['GET', 'POST'])
+@bp2.route(f'/${PRIVATE_ACCESS_TOKEN}', methods=['GET', 'POST'])
 def webhook():
     print("Webhook received. A file change was detected")
 # GET: Used by Dropbox to verify the webhook endpoint.

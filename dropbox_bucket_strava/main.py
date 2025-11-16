@@ -1,6 +1,7 @@
 from flask import Flask
 from routes.upload_back import bp1 as upload_bp
 from routes.transfer import bp2 as transfer_bp
+from routes.public_access import bp3 as frontend
 
 import os
 
@@ -8,6 +9,8 @@ app = Flask(__name__)
 
 app.register_blueprint(upload_bp)
 app.register_blueprint(transfer_bp)
+app.register_blueprint(frontend)
+
 
 # Cloud Run set PORT as it want. For testing code locally, already will be using 8080
 # guinocorn ignores this row

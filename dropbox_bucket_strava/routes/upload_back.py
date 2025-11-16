@@ -1,8 +1,10 @@
 from flask import Blueprint, request, jsonify
 from dropbox_usage.upload_to_dropbox import upload_custom_files_session
+from project_env.config import PRIVATE_UPLOAD_TOKEN
+
 bp1 = Blueprint("upload", __name__)
 
-@bp1.route("/upload_custom_files_session", methods=["POST"])
+@bp1.route(f"/${PRIVATE_UPLOAD_TOKEN}", methods=["POST"])
 def trigger_upload():
     print("Uploading custom files session")
     data = request.get_json(force=True)
