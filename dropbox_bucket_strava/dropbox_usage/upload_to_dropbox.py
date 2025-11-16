@@ -8,7 +8,7 @@ from dropbox.files import FileMetadata #add types, instead dropbox.files.FileMet
 from dropbox_usage.get_from_dropbox import auth_dropbox
 from flask import jsonify
 
-bucket = get_bucket()
+bucket = get_bucket("GCS_BUCKET_NAME")
 
 def upload_custom_files_session(gcs_folder: str):
     """

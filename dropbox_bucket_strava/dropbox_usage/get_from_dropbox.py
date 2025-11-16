@@ -11,7 +11,8 @@ import hmac
 import hashlib
 from flask import request, Response
 
-bucket = get_bucket()
+bucket_name="GCS_BUCKET_NAME"
+bucket = get_bucket(bucket_name)
 
 sm = SecretManagerClient(config.GCP_PROJECT_ID,config.s_email_dropbox)
 secrets_db_dict = sm.get_secret_json(config.SEC_DROPBOX)
@@ -59,11 +60,11 @@ def save_cursor(cursor):
     if cursor:
         print(f"Saving new cursor: {cursor[:15]}...")
         data = {"cursor": cursor}
-        upload_to_gcp_bucket(path_cursor_blob, data, "string")
+        upload_to_gcp_bucket(bucket_name, path_cursor_blob, data, "string")
     else:
         # Called when sync fails and needs a full reset
         print("Resetting cursor to None.")
-        delete_blob(path_cursor_blob)
+        delete_blob(bucket_name,path_cursor_blob)
 
 def handle_deletions_in_gcs(deleted_entries):
     """
@@ -77,7 +78,7 @@ def handle_deletions_in_gcs(deleted_entries):
         # /apps/activities/file.fit -> /activities/file.fit
         relative_path = entry.path_lower.replace(dropbox_prefix, "", 1)
         gcs_path = f"{gcs_prefix.rstrip('/')}/{relative_path.lstrip('/')}"
-        delete_blob(gcs_path)
+        delete_blob(bucket_name,gcs_path)
 
 # ---- Loading file in GCS ----
 def download_fit_files_from_dropbox(entries, dbx):
@@ -99,7 +100,7 @@ def upload_fit_files_to_gcs(files):
         # /apps/activities/file.fit -> /activities/file.fit
         relative_path = path.replace(dropbox_prefix, "", 1)
         gcs_path = f"{gcs_prefix.rstrip('/')}/{relative_path.lstrip('/')}"
-        upload_to_gcp_bucket(gcs_path, content, "string_path")
+        upload_to_gcp_bucket(bucket_name, gcs_path, content, "string_path")
         copied_files += 1
     return copied_files
 

@@ -1,6 +1,7 @@
 from gcp_actions.client import get_bucket
 
-bucket = get_bucket()
+
+bucket = get_bucket("GCS_BUCKET_NAME")
 print(bucket)
 
 

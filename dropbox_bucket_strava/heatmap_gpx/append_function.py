@@ -9,7 +9,8 @@ from project_env import config
 from gcp_actions.client import get_bucket
 from gcp_actions.blob_manipulation import upload_to_gcp_bucket, download_from_gcp_bucket, delete_blob
 
-bucket = get_bucket()
+bucket_name="GCS_BUCKET_NAME"
+bucket = get_bucket(bucket_name)
 
 def strip_source_content(file_path: str) -> str | None:
     with open(file_path, "r", encoding="utf-8") as f:
@@ -103,7 +104,7 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
     strip_source_content(local_gpx)
 
     # Loaded fragment to bucket
-    upload_to_gcp_bucket(fragment_blob_name, local_gpx, "filename")
+    upload_to_gcp_bucket(bucket_name, fragment_blob_name, local_gpx, "filename")
 
     # Union
     fragment_blob = bucket.blob(fragment_blob_name)
@@ -119,7 +120,7 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
             f.write("""<?xml version="1.0" encoding="UTF-8"?>
         <gpx version="1.1" creator="SPipeline">
          """)
-        upload_to_gcp_bucket(main_blob_name, main_blob_path, "filename")
+        upload_to_gcp_bucket(bucket_name, main_blob_name, main_blob_path, "filename")
         print(f"Heatmap file created:'{main_blob_name}'.")
 
     main_blob.compose([main_blob, fragment_blob])
@@ -148,12 +149,12 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
     }
     with open(local_state_path, "w", encoding="utf-8") as f:
         json.dump(state, f)
-    upload_to_gcp_bucket(state_blob_name, local_state_path, "filename")
+    upload_to_gcp_bucket(bucket_name, state_blob_name, local_state_path, "filename")
     # state_blob.upload_from_filename(local_state_path) delete
     print(f"State updated: compose_count={compose_count}, version={version}")
 
     # Upload updating index in bucket
-    upload_to_gcp_bucket(index_blob_name, local_index_path, "filename")
+    upload_to_gcp_bucket(bucket_name, index_blob_name, local_index_path, "filename")
 
     # Delete fragment
     delete_blob(fragment_blob_name)

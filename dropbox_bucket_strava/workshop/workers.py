@@ -11,6 +11,7 @@ from workshop.instruments import convert_fit_to_csv, clean_gps
 
 warnings.filterwarnings("ignore", category=UserWarning) # for ignore warn from fit 2 gpx
 conv = Converter()
+bucket_name="GCS_BUCKET_NAME"
 
 def union_pipeline(blob_path):
 # extracting some data from original .FIT for Data Labeling
@@ -39,14 +40,14 @@ def union_pipeline(blob_path):
     local_csv_fix = f"/tmp/{name}_fixed{ext}"
     bike_model = clean_gps(local_csv, local_csv_fix)
     fit_csv_gcs_path = f"csv_clean/{os.path.basename(local_csv_fix)}"
-    upload_to_gcp_bucket(fit_csv_gcs_path, local_csv_fix, "filename")
+    upload_to_gcp_bucket(bucket_name, fit_csv_gcs_path, local_csv_fix, "filename")
     print(f"Fixed:{fit_csv_gcs_path}")
 # ----- 3 phase explored CSV >>> FIT
     name1 = os.path.splitext(os.path.basename(local_csv))[0] # delete .extension
     local_fix_fit = f"/tmp/{name1}_ffixed.fit"
     convert_fit_to_csv(local_csv_fix, local_fix_fit, mode='encode')
     fix_fit_gcs_path = f"fit_clean/{os.path.basename(local_fix_fit)}"
-    upload_to_gcp_bucket(fix_fit_gcs_path, local_fix_fit, "filename")
+    upload_to_gcp_bucket(bucket_name, fix_fit_gcs_path, local_fix_fit, "filename")
     print(f"Uploaded fixed version in:{fix_fit_gcs_path}")
 # ----- 4 phase: Push explored FIT to strava
     current_mode = check_swith_status()
@@ -62,7 +63,7 @@ def union_pipeline(blob_path):
     local_gpx = f"/tmp/{filename.replace('.fit', '.gpx')}"
     conv.fit_to_gpx(local_fix_fit, local_gpx)
     gpx_gcs_path = f"gpx/{os.path.basename(local_gpx)}"
-    upload_to_gcp_bucket(gpx_gcs_path, local_gpx, "filename")
+    upload_to_gcp_bucket(bucket_name, gpx_gcs_path, local_gpx, "filename")
     print(f"Uploaded GPX in GCS:{gpx_gcs_path}")
 # ----- Create heatmap by bike
     append_gpx_via_compose(local_gpx, bike_model, gpx_gcs_path)
