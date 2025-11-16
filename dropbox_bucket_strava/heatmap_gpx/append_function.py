@@ -63,9 +63,8 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
 
     # Load state of number cycles
     local_state_path = f"/tmp/{compose_name}"
-    state_blob = download_from_gcp_bucket(state_blob_name,local_state_path, "blob")
+    state_blob = download_from_gcp_bucket(bucket_name, state_blob_name,local_state_path, "blob")
     if state_blob:
-        #state_blob.download_to_filename(local_state_path) delete
         with open(local_state_path, "r", encoding="utf-8") as f:
             state = json.load(f)
     else:
@@ -81,7 +80,7 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
 
     # Loading index
     indexed_dates = set()
-    if download_from_gcp_bucket(index_blob_name, local_index_path, "blob"):
+    if download_from_gcp_bucket(bucket_name, index_blob_name, local_index_path, "blob"):
         with open(local_index_path, "r", encoding="utf-8") as f:
             indexed_dates = set(line.strip() for line in f)
 
@@ -150,17 +149,16 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
     with open(local_state_path, "w", encoding="utf-8") as f:
         json.dump(state, f)
     upload_to_gcp_bucket(bucket_name, state_blob_name, local_state_path, "filename")
-    # state_blob.upload_from_filename(local_state_path) delete
     print(f"State updated: compose_count={compose_count}, version={version}")
 
     # Upload updating index in bucket
     upload_to_gcp_bucket(bucket_name, index_blob_name, local_index_path, "filename")
 
     # Delete fragment
-    delete_blob(fragment_blob_name)
+    delete_blob(bucket_name, fragment_blob_name)
     print(f"Blob Fragment '{fragment_blob_name}' deleting after union.")
 
     # Delete GPX from bucket. But I need single file for GIS analyze later. So, it will be deleted after this analyze (coming soon...)
-    # delete_blob(gpx_gcs_path)
+    # delete_blob(bucket_name, gpx_gcs_path)
     # print(f"GPX '{gpx_gcs_path}' deleting after union.")
 
