@@ -1,18 +1,15 @@
 from flask import Flask
-from routes.upload_back import bp1 as upload_bp
-from routes.transfer import bp2 as transfer_bp
+from route_site.public_access import bp3 as frontend
 import os
 from utilites.handle_logs import run_handle_logs
 from utilites.app_config_module import set_or_get_app_secret
-
 
 run_handle_logs()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = set_or_get_app_secret()
 
-app.register_blueprint(upload_bp)
-app.register_blueprint(transfer_bp)
+app.register_blueprint(frontend)
 
 
 if __name__ == "__main__":

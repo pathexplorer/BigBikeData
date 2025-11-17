@@ -12,8 +12,10 @@ if IS_LOCAL: # then load .env file
 # GCP credentials
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
-GCS_PUBLIC_BUCKET=os.environ.get("GCS_PUBLIC_BUCKET")
+GCS_PUB_INPUT_BUCKET=os.environ.get("GCS_PUB_INPUT_BUCKET")
+GCS_PUB_OUTPUT_BUCKET=os.environ.get("GCS_PUB_OUTPUT_BUCKET")
 CLOUD_RUN_SERVICE = os.environ.get("CLOUD_RUN_SERVICE")
+CLOUD_RUN_SERVICE_PUB = os.environ.get("CLOUD_RUN_SERVICE_PUB")
 # Dropbox and Strava
 SEC_STRAVA="strava-secrets"
 SEC_DROPBOX="dropbox-secrets"

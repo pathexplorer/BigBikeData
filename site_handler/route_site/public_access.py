@@ -1,8 +1,6 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, send_from_directory
 from gcp_actions.blob_manipulation import upload_to_gcp_bucket, generate_unique_filename
 from gcp_actions.pubsub import publish_message
-from project_env.config import GCS_PUBLIC_BUCKET
-import os
 
 bp3 = Blueprint('frontend', __name__, url_prefix='/')
 
@@ -10,7 +8,7 @@ bp3 = Blueprint('frontend', __name__, url_prefix='/')
 # In a real app, these would come from environment variables
 ALLOWED_EXTENSIONS = {'fit'}
 PUB_SUB_TOPIC = 'fit-file-processing-topic'
-bucket="GCS_PUBLIC_BUCKET"
+
 
 def allowed_file(filename):
     """Helper to check file extension."""
@@ -27,6 +25,12 @@ def index():
     """
     return render_template('index.html')
 
+@bp3.route('/robots.txt')
+def robots_txt():
+    """Serves the robots.txt file from the application root directory."""
+    # The '.' refers to the root directory of the application
+    return send_from_directory('.', 'robots.txt', mimetype='text/plain')
+
 
 @bp3.route('/upload', methods=['POST'])
 def handle_file_upload():
@@ -39,6 +43,9 @@ def handle_file_upload():
         return redirect(url_for('frontend.index'))
 
     file = request.files['file']
+    print("file = request.files['file'] without methods:",file)
+
+
     user_email = request.form.get('email_address')  # Example of getting other form data
 
     if not user_email:
@@ -55,12 +62,18 @@ def handle_file_upload():
 
     try:
         # Upload to GCS
+        # 2. Robust File Size Measurement
+        file_stream = file.stream
+
         # file.stream provides the file content without saving it to local disk
         gen_unic = generate_unique_filename(file.filename, "riders_bucket")
-        # gcs_unique_path = upload_file_to_gcs(file.stream, file.filename)
 
-        gcs_unique_path = upload_to_gcp_bucket(bucket, gen_unic, file.stream, "file")
-
+        file_stream.seek(0)
+        file_data = file_stream.read()
+        content_type = 'application/octet-stream'
+        bucket = "GCS_PUB_INPUT_BUCKET"
+        gcs_unique_path = upload_to_gcp_bucket(bucket, gen_unic, file_data, "string_path", content_type)
+        print("gcs_unique_path",gcs_unique_path)
         # Trigger Backend Pipeline via Pub/Sub
         # Publish the file location and user email for the workers to process
         message_data = {
@@ -69,7 +82,7 @@ def handle_file_upload():
             "original_filename": file.filename
         }
         # Publish the message (you would need the actual Pub/Sub client here)
-        publish_message(PUB_SUB_TOPIC, message_data)
+        #publish_message(PUB_SUB_TOPIC, message_data)
 
         # 4. Success Redirect
         return redirect(url_for('frontend.success'))
