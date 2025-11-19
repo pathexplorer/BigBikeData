@@ -1,14 +1,13 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, send_from_directory
 from gcp_actions.blob_manipulation import upload_to_gcp_bucket, generate_unique_filename
 from gcp_actions.pubsub import publish_message
+from power_core.project_env.config import GCP_TOPIC_NAME
+
 
 bp3 = Blueprint('frontend', __name__, url_prefix='/')
 
 # --- Configuration ---
-# In a real app, these would come from environment variables
 ALLOWED_EXTENSIONS = {'fit'}
-PUB_SUB_TOPIC = 'fit-file-processing-topic'
-
 
 def allowed_file(filename):
     """Helper to check file extension."""
@@ -82,7 +81,7 @@ def handle_file_upload():
             "original_filename": file.filename
         }
         # Publish the message (you would need the actual Pub/Sub client here)
-        #publish_message(PUB_SUB_TOPIC, message_data)
+        publish_message(GCP_TOPIC_NAME, message_data)
 
         # 4. Success Redirect
         return redirect(url_for('frontend.success'))

@@ -1,0 +1,15 @@
+flask
+gunicorn
+dropbox
+google-cloud-logging
+google-auth
+git+https://github.com/pathexplorer/fit2gpx.git@first
+gcp-actions[processing-worker] @ git+https://github.com/pathexplorer/gcp_actions.git@v.0.1.5
+gpxpy
+numpy
+pandas
+lxml
+fitdecode
+python-dotenv
+datetime
+sib-api-v3-sdk

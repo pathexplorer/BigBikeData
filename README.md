@@ -1,2 +1,2 @@
-![Scheme](dropbox_bucket_strava/docs/Scheme.png
+![Scheme](power_core/docs/Scheme.png
 )
