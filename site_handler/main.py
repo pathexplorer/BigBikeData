@@ -1,8 +1,9 @@
 from flask import Flask
 from route_site.public_access import bp3 as frontend
 import os
-from utilites.handle_logs import run_handle_logs
-from utilites.app_config_module import set_or_get_app_secret
+
+from route_site.app_config_module import set_or_get_app_secret
+from power_core.utilites.handle_logs import run_handle_logs
 
 run_handle_logs()
 

@@ -1,17 +1,17 @@
 # wahoo.yaml (Revised for Cloud Build substitutions)
 steps:
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', '${_YAML_IMAGE_PUB}:v1', '.']
+    args: ['build', '-t', '${_YAML_IMAGE_PUB}:v2.01', '.']
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', '${_YAML_IMAGE_PUB}:v1']
+    args: ['push', '${_YAML_IMAGE_PUB}:v2.01']
 
   - name: 'gcr.io/cloud-builders/gcloud'
     args:
       - 'run'
       - 'deploy'
       - '${_CLOUD_RUN_SERVICE_PUB}'
-      - '--image=${_YAML_IMAGE_PUB}:v1'
+      - '--image=${_YAML_IMAGE_PUB}:v2.01'
       - '--region=${_REGION}'
       - '--platform=managed'
       - '--no-allow-unauthenticated'
@@ -19,4 +19,4 @@ steps:
       - '--set-env-vars=PRIVATE_ACCESS_TOKEN=${_PRIVATE_ACCESS_TOKEN},PRIVATE_UPLOAD_TOKEN=${_PRIVATE_UPLOAD_TOKEN},GCP_PROJECT_ID=${_GCP_PROJECT_ID},GCS_PUB_INPUT_BUCKET=${_GCS_PUB_INPUT_BUCKET},GCS_PUB_OUTPUT_BUCKET=${_GCS_PUB_OUTPUT_BUCKET},CLOUD_RUN_SERVICE_PUB=${_CLOUD_RUN_SERVICE_PUB}'
 
 images:
-  - '${_YAML_IMAGE_PUB}:v1'
+  - '${_YAML_IMAGE_PUB}:v2.01'
