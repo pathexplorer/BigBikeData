@@ -1,0 +1,39 @@
+# wahoo.yaml (Revised to use a readable, multiline --set-env-vars)
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '${_YAML_IMAGE}:v2.08', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '${_YAML_IMAGE}:v2.08']
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_CLOUD_RUN_SERVICE}'
+      - '--image=${_YAML_IMAGE}:v2.08'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--service-account=${_S_ACCOUNT_RUN}'
+      # Use a multiline block for --set-env-vars for readability.
+      # The '|' tells YAML to treat the indented block as a single string.
+      - '--set-env-vars=GCP_PROJECT_ID=${_GCP_PROJECT_ID},GCS_BUCKET_NAME=${_GCS_BUCKET_NAME},GCS_PUB_INPUT_BUCKET=${_GCS_PUB_INPUT_BUCKET},GCS_PUB_OUTPUT_BUCKET=${_GCS_PUB_OUTPUT_BUCKET},CLOUD_RUN_SERVICE=${_CLOUD_RUN_SERVICE},S_ACCOUNT_DROPBOX=${_S_ACCOUNT_DROPBOX},S_ACCOUNT_STRAVA=${_S_ACCOUNT_STRAVA},PRIVATE_ACCESS_TOKEN=${_PRIVATE_ACCESS_TOKEN},PRIVATE_UPLOAD_TOKEN=${_PRIVATE_UPLOAD_TOKEN},SEC_DROPBOX=${_SEC_DROPBOX},SEC_STRAVA=${_SEC_STRAVA},BREVO_API_KEY=${_BREVO_API_KEY}'
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Set Public Access'
+    args:
+      - 'run'
+      - 'services'
+      - 'add-iam-policy-binding'
+      - '${_CLOUD_RUN_SERVICE}'
+      - '--member=allUsers'
+      - '--role=roles/run.invoker'
+      - '--region=${_REGION}'
+      - '--project=${_GCP_PROJECT_ID}'
+
+images:
+  - '${_YAML_IMAGE}:v2.08'
+
+# This option allows unused variables from the .env file to be ignored.
+options:
+  substitution_option: 'ALLOW_LOOSE'

@@ -31,19 +31,19 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     if [[ "$trimmed_line" =~ ^\s*# || -z "$trimmed_line" ]]; then
         continue
     fi
-
+    
     # Extract the variable name (part before the '=')
     key="${trimmed_line%%=*}"
-
+    
     # Get the value of the variable from the already-sourced environment
     value="${!key}"
-
+    
     # Append to the substitution string in the format _KEY=VALUE,
     SUBS+="_${key}=${value},"
 done < "$ENV_FILE"
 
 # Add special substitutions that may not be in the env file
-SUBS+="_YAML_IMAGE_PUB=${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY}/${CLOUD_RUN_SERVICE_PUB}"
+SUBS+="_YAML_IMAGE=${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY}/${CLOUD_RUN_SERVICE}"
 #SUBS+=",_S_ACCOUNT_RUN=${SA_NAME_RUN}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
 #SUBS+=",_S_ACCOUNT_STRAVA=${SA_NAME_STRAVA}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
 #SUBS+=",_S_ACCOUNT_DROPBOX=${SA_NAME_DROPBOX}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
@@ -53,7 +53,7 @@ echo "Substitutions prepared."
 # --- Submit the Build ---
 # The --ignore-file flag is crucial to exclude .venv, etc.
 gcloud builds submit . \
-    --config=site.yaml \
+    --config=wahoo.yaml \
     --ignore-file=.dockerignore \
     --substitutions="${SUBS}"
 

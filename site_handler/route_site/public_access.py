@@ -1,13 +1,22 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, send_from_directory
 from gcp_actions.blob_manipulation import upload_to_gcp_bucket, generate_unique_filename
 from gcp_actions.pubsub import publish_message
-from power_core.project_env.config import GCP_TOPIC_NAME
+import os
+from dotenv import load_dotenv
+
+# Cloud Run assets K_SERVICE. If it is not present, is locally env
+IS_LOCAL = os.environ.get("K_SERVICE") is None
+
+if IS_LOCAL: # then load .env file
+    dotenv_path = os.path.join(os.path.dirname(__file__), "vars.env")
+    load_dotenv(dotenv_path=dotenv_path, override=False)
 
 
 bp3 = Blueprint('frontend', __name__, url_prefix='/')
 
 # --- Configuration ---
 ALLOWED_EXTENSIONS = {'fit'}
+GCP_TOPIC_NAME=os.environ.get("GCP_TOPIC_NAME")
 
 def allowed_file(filename):
     """Helper to check file extension."""
@@ -19,11 +28,10 @@ def allowed_file(filename):
 @bp3.route('/', methods=['GET'])
 def index():
     """
-    Shows the main page with the file upload form.
-    Flask will look for 'index.html' in a folder named 'templates'.
+    Serves the index.html file from the application root directory.
     """
+    # The '.' refers to the root directory of the application
     return render_template('index.html')
-
 @bp3.route('/robots.txt')
 def robots_txt():
     """Serves the robots.txt file from the application root directory."""

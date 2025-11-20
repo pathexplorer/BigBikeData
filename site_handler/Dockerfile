@@ -4,8 +4,10 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=True
 ENV APP_HOME=/app
 ENV PORT=8080
+ENV PYTHONPATH=$APP_HOME
 WORKDIR $APP_HOME
 COPY . ./
+
 
 RUN apt-get update \
     # 1. Install git (and build-essential, which is good practice for C extensions)
