@@ -1,6 +1,26 @@
 import subprocess
 import re
 import os
+import os
+import re
+
+def is_safe_tmp_path(filepath):
+    """
+    Check that a given file path is an absolute file under /tmp and has a safe filename.
+    """
+    # Ensure absolute path and parent is /tmp
+    if not os.path.isabs(filepath):
+        return False
+    # Only allow files under /tmp
+    tmp_dir = "/tmp"
+    norm_path = os.path.normpath(filepath)
+    if not norm_path.startswith(tmp_dir + os.sep):
+        return False
+    # File name pattern: allow alphanum, dash, underscore, dot, ext .fit or .csv
+    filename = os.path.basename(norm_path)
+    if not re.match(r"^[\w\-.]+\.((fit)|(csv))$", filename, re.IGNORECASE):
+        return False
+    return True
 
 def convert_fit_to_csv(input_path, output_path, mode):
     """
@@ -8,18 +28,23 @@ def convert_fit_to_csv(input_path, output_path, mode):
     It uses an absolute path to the .jar file to ensure it runs correctly
     in any environment (local or container).
     """
+    # Security check of the file paths
+    if not is_safe_tmp_path(input_path):
+        raise ValueError(f"Unsafe input_path for FIT decode: {repr(input_path)}")
+    if not is_safe_tmp_path(output_path):
+        raise ValueError(f"Unsafe output_path for FIT decode: {repr(output_path)}")
     flag = "-b" if mode == "decode" else "-c"
 
     # --- Path Correction ---
     # Get the directory where this Python script is located.
     # In the container, this will be /app/power_core/workshop
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     # Construct the absolute path to the .jar file.
     # It is located in the parent directory of 'workshop' (i.e., 'power_core').
     # The path will resolve to /app/power_core/FitCSVTool.jar in the container.
     jar_path = os.path.join(script_dir, '..', 'FitCSVTool.jar')
-    
+
     # Normalize the path to resolve the '..' component.
     jar_path = os.path.normpath(jar_path)
 
@@ -27,11 +52,11 @@ def convert_fit_to_csv(input_path, output_path, mode):
 
     # --- Execute the Command ---
     command = ["java", "-jar", jar_path, flag, input_path, output_path]
-    
+
     # Check if the JAR file actually exists before running the command
     if not os.path.exists(jar_path):
         raise FileNotFoundError(f"FATAL: The JAR file could not be found at the expected path: {jar_path}")
-        
+
     subprocess.run(command, check=True)
 
 
