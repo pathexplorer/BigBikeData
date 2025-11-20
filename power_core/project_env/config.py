@@ -20,9 +20,9 @@ EVENTARC_SA=os.environ.get("EVENTARC_SA")
 EVENTARC_TRIGGER=os.environ.get("EVENTARC_TRIGGER")
 GCP_TOPIC_NAME=os.environ.get("GCP_TOPIC_NAME")
 # Dropbox and Strava
-SEC_STRAVA="strava-secrets"
-SEC_DROPBOX="dropbox-secrets"
-BREVO_CREDENTIALS="trans-email-sender"
+SEC_STRAVA=os.environ.get("SEC_STRAVA")
+SEC_DROPBOX=os.environ.get("SEC_DROPBOX")
+BREVO_CREDENTIALS=os.environ.get("BREVO_API_KEY")
 s_email_run = os.environ.get("S_ACCOUNT_RUN")
 s_email_dropbox = os.environ.get("S_ACCOUNT_DROPBOX")
 s_email_strava = os.environ.get("S_ACCOUNT_STRAVA")

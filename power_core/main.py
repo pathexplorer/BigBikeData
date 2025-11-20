@@ -1,9 +1,9 @@
 from flask import Flask
-from routes.upload_back import bp1 as upload_bp
-from routes.transfer import bp2 as transfer_bp
-from routes.public_user import bp3 as transfer_pubic
+from power_core.routes.upload_back import bp1 as upload_bp
+from power_core.routes.transfer import bp2 as transfer_bp
+from power_core.routes.public_user import bp3 as transfer_pubic
 import os
-from utilites.handle_logs import run_handle_logs
+from power_core.utilites.handle_logs import run_handle_logs
 
 
 run_handle_logs()
