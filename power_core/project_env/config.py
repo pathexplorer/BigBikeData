@@ -19,6 +19,7 @@ CLOUD_RUN_SERVICE_PUB = os.environ.get("CLOUD_RUN_SERVICE_PUB")
 EVENTARC_SA=os.environ.get("EVENTARC_SA")
 EVENTARC_TRIGGER=os.environ.get("EVENTARC_TRIGGER")
 GCP_TOPIC_NAME=os.environ.get("GCP_TOPIC_NAME")
+EMAIL_MODE=os.environ.get("EMAIL_MODE")
 # Dropbox and Strava
 SEC_STRAVA=os.environ.get("SEC_STRAVA")
 SEC_DROPBOX=os.environ.get("SEC_DROPBOX")
@@ -42,4 +43,13 @@ CHUNK_SIZE = 8 * 1024 * 1024  # 8MB
 # Indexes
 CURSOR_BLOB = "tmp/dropbox_cursor.json"
 MAINFEST_GSC_PATH = f"{CLOUD_RUN_SERVICE}/manifests.json"
+SMTP_SERVER=os.environ.get("SMTP_SERVER")
+SMTP_PORT=os.environ.get("SMTP_PORT")
+SMTP_USER=os.environ.get("SMTP_USER")
+SMTP_PASSWORD=os.environ.get("SMTP_PASSWORD")
+SENDER_EMAIL=os.environ.get("SENDER_EMAIL")
+
+# VERSION MANAGEMENT
+BACKEND_TAG=os.environ.get("BACKEND_TAG")
+FRONTEND_TAG=os.environ.get("FRONTEND_TAG")
 

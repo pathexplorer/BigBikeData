@@ -1,6 +1,6 @@
 import logging
 import os
-# import shutil
+import shutil
 import datetime
 from fit2gpx import Converter
 from gcp_actions.blob_manipulation import upload_to_gcp_bucket, download_from_gcp_bucket
@@ -12,9 +12,9 @@ from power_core.heatmap_gpx.append_function import append_gpx_via_compose
 from power_core.workshop.instruments import convert_fit_to_csv, clean_gps
 from power_core.utilites.email_sender import send_email
 from power_core.utilites.generate import g_download_link
-
 from power_core.project_env.config import GSC_ORIG_FIT_FOLDER
 
+# Initialize global dependencies
 CONVERTER = Converter()
 
 class ActivityProcessingPipeline:
@@ -77,6 +77,8 @@ class ActivityProcessingPipeline:
             self.path_to_buckets = self.gcs_orig_path
         elif mode == "help_riders":
             self.path_to_buckets = self.blob_path
+            # When helping riders, we might be accessing a "Requester Pays" bucket.
+            # We need to specify our project to pay for the download.
             user_project = get_env_and_cashed_it("GCP_PROJECT_ID")
 
         logging.debug(f"🌍 Stage 01: Downloading FIT from GCS: {self.path_to_buckets}")
@@ -161,11 +163,15 @@ class ActivityProcessingPipeline:
             base_orig_name = os.path.splitext(self.original_filename)[0]
             download_filename = f"{base_orig_name}_clean.fit"
 
+            # Get the service account to impersonate for signing the URL
+            impersonate_sa = get_env_and_cashed_it("S_ACCOUNT_RUN")
+
             # Generate the temporary download link for the file in GCS
             download_link = g_download_link(
                 bucket_name=self.bucket_name,
                 blob_name=self.gcs_fixed_fit_path,
-                download_filename=download_filename
+                download_filename=download_filename,
+                impersonate_sa=impersonate_sa
             )
 
             # Create a unique timestamp to help prevent email trimming

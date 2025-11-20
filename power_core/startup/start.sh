@@ -60,6 +60,7 @@ ROLES_SA_RUN=(
  roles/pubsub.publisher
  roles/secretmanager.admin
  roles/datastore.viewer
+ roles/logging.logWriter # Added permission to write logs
 )
 ROLES_USER_ACCOUNT=(
  roles/artifactregistry.writer
@@ -74,6 +75,11 @@ API_LIST=(
  firestore.googleapis.com
  cloudbuild.googleapis.com
  run.googleapis.com
+ logging.googleapis.com # Added logging API
+ pubsub.googleapis.com # Added Pub/Sub API
+ eventarc.googleapis.com
+ eventarcpublishing.googleapis.com
+ iamcredentials.googleapis.com # API for impersonation
 )
 RESOURCE_SEC_ROLES=(
  roles/secretmanager.admin
@@ -96,6 +102,8 @@ REQUIRED_VARS=(
 "SEC_DROPBOX"
 "SEC_STRAVA"
 "ARTIFACT_REGISTRY"
+"GCP_TOPIC_NAME" # todo check after
+"GCP_SUBSCRIPTION_NAME" # todo check after
 )
 check_required_variables "${REQUIRED_VARS[@]}"
 
@@ -215,6 +223,12 @@ stage_6_BIND_PROJ_ROLE_TO_SA() {
       "iam service-accounts" \
       "$SA_EMAIL_2" \
       "${IMPERSONATION_ROLES[@]}"
+    
+    # Grant the main run SA the ability to impersonate ITSELF to sign URLs
+    gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL_3" \
+        --member="serviceAccount:$SA_EMAIL_3" \
+        --role="roles/iam.serviceAccountTokenCreator"
+
     # template grant role to dropbox and strava
     assign_roles_to_run_service_acc \
       "$MY_USER_ACCOUNT" \
@@ -251,6 +265,53 @@ stage_7_SECRETS() {
     check_and_create_secret "$SEC_STRAVA" "secret-data-for-app-2" "strava"
 }
 run_stage "stage_7_SECRETS"
+
+stage_8_PUBSUB_SETUP() {
+    echo "=== Setting up Pub/Sub with Dead-Letter Queue ==="
+    local main_topic="$GCP_TOPIC_NAME"
+    local dlq_topic="${main_topic}-dlq"
+    local subscription="$GCP_SUBSCRIPTION_NAME"
+
+    # Create the main topic if it doesn't exist
+    if ! gcloud pubsub topics describe "$main_topic" &>/dev/null; then
+        echo "Creating main Pub/Sub topic: $main_topic"
+        gcloud pubsub topics create "$main_topic"
+    else
+        echo "Main Pub/Sub topic $main_topic already exists."
+    fi
+
+    # Create the dead-letter topic if it doesn't exist
+    if ! gcloud pubsub topics describe "$dlq_topic" &>/dev/null; then
+        echo "Creating dead-letter topic: $dlq_topic"
+        gcloud pubsub topics create "$dlq_topic"
+    else
+        echo "Dead-letter topic $dlq_topic already exists."
+    fi
+
+    # Create the main subscription with the dead-letter policy
+    if ! gcloud pubsub subscriptions describe "$subscription" &>/dev/null; then
+        echo "Creating subscription '$subscription' with DLQ policy..."
+        gcloud pubsub subscriptions create "$subscription" \
+            --topic="$main_topic" \
+            --dead-letter-topic="$dlq_topic" \
+            --max-delivery-attempts=5
+    else
+        echo "Subscription $subscription already exists. Updating with DLQ policy..."
+        gcloud pubsub subscriptions update "$subscription" \
+            --dead-letter-topic="$dlq_topic" \
+            --max-delivery-attempts=5
+    fi
+
+    # Grant the Pub/Sub service account permission to publish to the DLQ topic
+    local pubsub_sa="service-${PROJECT_NUMBER}@gcp-sa-pubsub.iam.gserviceaccount.com"
+    echo "Granting Pub/Sub service account permissions for DLQ..."
+    gcloud pubsub topics add-iam-policy-binding "$dlq_topic" \
+        --member="serviceAccount:$pubsub_sa" \
+        --role="roles/pubsub.publisher"
+
+    echo "✅ Pub/Sub setup complete."
+}
+run_stage "stage_8_PUBSUB_SETUP"
 
 stage_9_CREATE_ART_REG_REPO() {
   # DEPENDENCY: INSTALLED DOCKER

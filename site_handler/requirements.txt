@@ -2,4 +2,4 @@ flask
 gunicorn
 keyring
 google-cloud-logging
-gcp-actions[storage,pubsub] @ git+https://github.com/pathexplorer/gcp_actions.git@v.0.1.5
+gcp-actions[storage,pubsub] @ git+https://github.com/pathexplorer/gcp_actions.git@0.1.12
