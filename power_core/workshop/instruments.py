@@ -1,9 +1,39 @@
 import subprocess
 import re
+import os
 
 def convert_fit_to_csv(input_path, output_path, mode):
+    """
+    Converts a .fit file to .csv or vice-versa using the FitCSVTool.jar.
+    It uses an absolute path to the .jar file to ensure it runs correctly
+    in any environment (local or container).
+    """
     flag = "-b" if mode == "decode" else "-c"
-    subprocess.run(["java", "-jar", "FitCSVTool.jar", flag, input_path, output_path], check=True)
+
+    # --- Path Correction ---
+    # Get the directory where this Python script is located.
+    # In the container, this will be /app/power_core/workshop
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Construct the absolute path to the .jar file.
+    # It is located in the parent directory of 'workshop' (i.e., 'power_core').
+    # The path will resolve to /app/power_core/FitCSVTool.jar in the container.
+    jar_path = os.path.join(script_dir, '..', 'FitCSVTool.jar')
+    
+    # Normalize the path to resolve the '..' component.
+    jar_path = os.path.normpath(jar_path)
+
+    print(f"DEBUG: Attempting to use FitCSVTool.jar at: {jar_path}")
+
+    # --- Execute the Command ---
+    command = ["java", "-jar", jar_path, flag, input_path, output_path]
+    
+    # Check if the JAR file actually exists before running the command
+    if not os.path.exists(jar_path):
+        raise FileNotFoundError(f"FATAL: The JAR file could not be found at the expected path: {jar_path}")
+        
+    subprocess.run(command, check=True)
+
 
 def label_bike(lines):
     """
@@ -45,4 +75,3 @@ def clean_gps(input_path, output_path):
     with open(output_path, 'w', encoding='utf-8') as outfile:
         outfile.writelines(cleaned_lines)
     return bike_model
-
