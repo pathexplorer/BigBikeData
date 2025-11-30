@@ -1,2 +1,22 @@
-/site_handler/my_log_file.log
-/site_handler/route_site/vars.env
+.log
+.env
+.firebase
+site_handler/node_modules/
+site_handler/public/
+
+# IDE and git ignores
+.git/
+.gitignore
+.idea/
+.vscode/
+
+# Standard Python ignores
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+venv/
+.venv/
+*.env
+*.log

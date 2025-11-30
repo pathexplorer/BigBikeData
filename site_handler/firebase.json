@@ -1,0 +1,322 @@
+{
+  "hosting": {
+    "public": "site_handler",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "redirects": [
+      {
+        "source": "/wp-admin/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+           {
+        "source": "/cms/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/site/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/sito/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/test/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/shop/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/2021/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/2020/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/2019/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/2018/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/wordpress/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/wp-includes/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/wp/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/wp1/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/wp2/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/media/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/chatIndex",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/jx.html",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/h5/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/news/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/phpmyadmin/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/feed/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/blog/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/web/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/.git/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/sellers.json",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/app-ads.txt",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/ads.txt",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/wp-login.php",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/wp-config.php",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/xmlrpc.php",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/.env",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/backend/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/core/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/.env.bak",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/.env.bak",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/aws.config.js",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/admin/**",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/.gitlab-ci.yml",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/config.json",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/config.js",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/aws-config.js",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/sftp-config.json",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "source": "/sftp.json",
+        "destination": "/404.html",
+        "type": 302
+      },
+      {
+        "regex": "/xmlrpc\\.php\\?.*",
+        "destination": "/404.html",
+        "type": 302
+      }
+    ],
+    "rewrites":
+    [
+      {
+        "source": "/",
+        "run": {
+          "serviceId": "front-side-for-friends",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/language/en",
+        "run": {
+          "serviceId": "front-side-for-friends",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/language/uk",
+        "run": {
+          "serviceId": "front-side-for-friends",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/upload",
+        "run": {
+          "serviceId": "front-side-for-friends",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/success",
+        "run": {
+          "serviceId": "front-side-for-friends",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/robots.txt",
+        "run": {
+          "serviceId": "front-side-for-friends",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/download/**",
+        "run": {
+          "serviceId": "front-side-for-friends",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/static/404.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "/static/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "**/*.@(html)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Strict-Transport-Security",
+            "value": "max-age=31536000; includeSubDomains; preload"
+          }
+        ]
+      }
+    ]
+  }
+}

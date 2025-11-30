@@ -1,0 +1,120 @@
+# Ukrainian translations for PROJECT.
+# Copyright (C) 2025 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2025-11-21 21:19+0200\n"
+"PO-Revision-Date: 2025-11-21 21:21+0200\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: uk\n"
+"Language-Team: uk <LL@li.org>\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: site_handler/route_site/public_access.py:51
+msgid "No file part in the request."
+msgstr "У запиті немає файлової частини."
+
+#: site_handler/route_site/public_access.py:61
+msgid "Email address is required."
+msgstr "Потрібна адреса електронної пошти."
+
+#: site_handler/route_site/public_access.py:65
+msgid "No file was selected."
+msgstr "Файл не вибрано."
+
+#: site_handler/route_site/public_access.py:69
+msgid "Invalid file type. Only .fit files are accepted."
+msgstr "Недійсний тип файлу. Приймаються лише файли .fit."
+
+#: site_handler/route_site/public_access.py:107
+msgid "An unexpected error occurred during upload or processing."
+msgstr "Під час завантаження або обробки сталося щось дивне."
+
+#: site_handler/templates/index.html:37
+msgid "Clean .fit files from teleports"
+msgstr "Очистити файл .fit від телепортів"
+
+#: site_handler/templates/index.html:47
+msgid "Error:"
+msgstr "Помилка:"
+
+#: site_handler/templates/index.html:61
+msgid "Input your email (for results)"
+msgstr "Введіть свою електронну адресу (для результатів)"
+
+#: site_handler/templates/index.html:69
+msgid "your.name@example.com"
+msgstr "your.name@example.com"
+
+#: site_handler/templates/index.html:78
+msgid "Upload your .fit file"
+msgstr "Завантажте свій файл .fit"
+
+#: site_handler/templates/index.html:90 site_handler/templates/index.html:127
+msgid "Select a file"
+msgstr "Виберіть файл"
+
+#: site_handler/templates/index.html:93 site_handler/templates/index.html:128
+msgid "or drag and drop"
+msgstr "або перетягніть у це вікно"
+
+#: site_handler/templates/index.html:96 site_handler/templates/index.html:97
+msgid "FIT file format only. Max 30MB."
+msgstr "Тільки формат файлу FIT. Макс. 30 МБ."
+
+#: site_handler/templates/index.html:109
+msgid "Start Cleaning Process"
+msgstr "Розпочати процес очищення"
+
+#: site_handler/templates/index.html:126
+msgid "File ready for cleaning!"
+msgstr "Файл готовий до очищення!"
+
+#: site_handler/templates/index.html:129
+msgid "Processing..."
+msgstr "Обробка..."
+
+#: site_handler/templates/success.html:29
+msgid "Thank you! Your file is being processed. We will email the result."
+msgstr "Дякуємо! Ваш файл обробляється. Ми надішлемо вам результат електронною поштою."
+
+#: site_handler/site_handler/templates/index.html:151
+msgid "Support:"
+msgstr "Підтримка:"
+
+#: site_handler/site_handler/templates/index.html:151
+msgid "Cherkasy, Ukraine"
+msgstr "Черкаси, Україна"
+
+#: site_handler/site_handler/templates/404_expired.html:37
+msgid "Oops, the link is expired and not valid anymore. Please upload your file again."
+msgstr "Отакої, посилання вже не активне. Будь-ласка, завантажте свій файл знову"
+
+#: site_handler/site_handler/templates/500.html:6
+msgid "Internal Server Error"
+msgstr "Внутрішня помилка на сервері"
+
+#: site_handler/site_handler/templates/500.html:21
+msgid "An Unexpected Error Occurred"
+msgstr "Сталось щось неочікуване"
+
+#: site_handler/site_handler/templates/500.html:25
+msgid "We have been notified of the issue and are working to fix it. Please try again later."
+msgstr "Ми будемо проінформовані про цю помилку і займемось її виправленням. Будь-ласка, спобуйте пізніше"
+
+#: site_handler/site_handler/templates/500.html:31
+msgid "Return to Homepage"
+msgstr "Повернутись на головну сторінку"
+
+#: site_handler/site_handler/static/404.html:37
+msgid "404 - Page Not Found"
+msgstr "404 - Сторінка не знайдена"

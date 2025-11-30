@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-2HG082PSSS"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-2HG082PSSS');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clean .fit File Service</title>
+    <!-- Use url_for to generate the correct path for both local and production -->
+    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        /* FAILSAFE LAYOUT STYLES:
+           Ensures vertical centering even if Tailwind 'output.css' hasn't been rebuilt
+           to include the new flex utility classes.
+        */
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            position: relative;
+            /* box-sizing is usually handled by Tailwind reset, but good to ensure for padding calc */
+            box-sizing: border-box;
+        }
+
+        /* Custom styles for the button for better visual feedback */
+        .submit-button {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .submit-button:hover:not(:disabled) {
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+            transform: translateY(-2px);
+        }
+        .submit-button:disabled {
+            background-color: #9ca3af; /* gray-400 */
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+
+<!--
+    IMPROVEMENT: Layout Fix for Vertical Centering and Footer Clearance
+    1. Body uses flex and flex-col to enable vertical centering.
+    2. pb-20 (padding-bottom) reserves space for the absolute footer, preventing content overlap and vertical scroll.
+-->
+<body class="bg-gray-50 min-h-screen relative flex flex-col items-center justify-center pt-8 pb-20">
+
+    <!-- Main Content Area (The Card) -->
+    <!-- This element is now centered by the flex classes on the body -->
+    <div class="max-w-md w-full p-6 bg-white rounded-xl shadow-2xl space-y-8">
+        <!-- Language Switcher -->
+        <div class="text-right text-sm">
+            <a href="{{ url_for('language.set_language', lang='en') }}" class="font-medium text-indigo-600 hover:text-indigo-500">English</a> |
+            <a href="{{ url_for('language.set_language', lang='uk') }}" class="font-medium text-indigo-600 hover:text-indigo-500">Українська</a>
+        </div>
+
+            <!-- Main Header -->
+            <h1 class="text-4xl font-extrabold text-center text-gray-800 tracking-tight">
+                {{ _('Clean .fit files from teleports') }}
+            </h1>
+
+        <!-- Flash Messages (for errors/success from Flask) -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    {% set color = 'red' if category == 'error' else 'green' %}
+                    <div class="bg-{{ color }}-100 border border-{{ color }}-400 text-{{ color }}-700 px-4 py-3 rounded relative" role="alert">
+                    {% if category == 'error' %}
+                        <strong class="font-bold">{{ _('Error:') }}</strong>
+                    {% endif %}
+                        <span class="block sm:inline">{{ message }}</span>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- File Upload Form -->
+        <form id="upload-form" method="POST" action="{{ url_for('frontend.handle_file_upload') }}" enctype="multipart/form-data" class="space-y-6">
+
+            <!-- Email Input Field -->
+            <div>
+                <label for="email_address" class="block text-sm font-medium text-gray-700">
+                    {{ _('Input your email (for results)') }}
+                </label>
+                <div class="mt-1">
+                    <input
+                        id="email_address"
+                        name="email_address"
+                        type="email"
+                        required
+                        placeholder="{{ _('your.name@example.com') }}"
+                        class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    >
+                </div>
+            </div>
+
+            <!-- File Upload Field -->
+            <div>
+                <label for="fit_file" class="block text-sm font-medium text-gray-700">
+                    {{ _('Upload your .fit file') }}
+                </label>
+                <!-- File Display Container -->
+                <div id="file-display-box" class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-indigo-500 transition-colors duration-200">
+                    <div class="space-y-1 text-center">
+                        <svg id="upload-icon" class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+
+                        <!-- File Info Text -->
+                        <div id="file-info-text" class="flex text-sm text-gray-600">
+                            <label for="fit_file" class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                                <span id="select-text" data-default-text="{{ _('Select a file') }}">{{ _('Select a file') }}</span>
+                                <input id="fit_file" name="file" type="file" required accept=".fit" class="sr-only">
+                            </label>
+                            <p id="drag-drop-text" data-default-text="{{ _('or drag and drop') }}" class="pl-1">{{ _('or drag and drop') }}</p>
+                        </div>
+
+                        <p id="file-restrictions" class="text-xs text-gray-500" data-default-text="{{ _('FIT file format only. Max 30MB.') }}" data-ready-text="{{ _('File ready for cleaning!') }}">
+                            {{ _('FIT file format only. Max 30MB.') }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <button
+                id="submit-btn"
+                type="submit"
+                class="submit-button w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                data-processing-text="{{ _('Processing...') }}"
+            >
+                {{ _('Start Cleaning Process') }}
+            </button>
+        </form>
+    </div>
+
+    <!--
+        Footer Fix for Horizontal Scrollbar
+        Replaced 'left-0 right-0' with the simpler and safer 'w-full'.
+    -->
+    <footer class="absolute bottom-0 w-full text-center py-4 text-gray-500 text-sm">
+        <p>&copy; 2025 {{ _('Cherkasy, Ukraine') }} | {{ _('Support:') }} <a href="mailto:support@offteleport.cloud" class="text-indigo-600 hover:underline">support@offteleport.cloud</a></p>
+    </footer>
+
+    <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>
