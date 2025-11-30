@@ -4,7 +4,8 @@ dropbox
 google-cloud-logging
 google-auth
 git+https://github.com/pathexplorer/fit2gpx.git@first
-gcp-actions[processing-worker] @ git+https://github.com/pathexplorer/gcp_actions.git@0.1.12
+#gcp-actions[processing-worker] @ git+https://github.com/pathexplorer/gcp_actions.git@0.1.12
+./gcp_actions[processing-worker]
 gpxpy
 numpy
 pandas

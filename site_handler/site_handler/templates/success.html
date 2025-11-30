@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-2HG082PSSS"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-2HG082PSSS');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clean .fit File Service</title>
+    <!-- Load Tailwind CSS for utility styling -->
+  <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        /* Custom styles for the button for better visual feedback */
+        .submit-button {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .submit-button:hover {
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 flex items-center justify-center min-h-screen">
+
+    <div class="max-w-md w-full p-6 bg-white rounded-xl shadow-2xl space-y-8">
+
+        <!-- Main Header -->
+        <h5 class="text-2xl font-bold text-center text-gray-800 tracking-tight">
+            {{ _('Thank you! Your file is being processed. We will email the result.') }}
+
+        </h5>
+
+
+    </div>
+
+</body>
+</html>

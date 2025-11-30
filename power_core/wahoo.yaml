@@ -1,0 +1,45 @@
+# wahoo.yaml (Revised for Monorepo Build)
+steps:
+  # This step builds the 'power_core' service.
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_YAML_IMAGE}'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '${_YAML_IMAGE}']
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_CLOUD_RUN_SERVICE}'
+      - '--image=${_YAML_IMAGE}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--service-account=${_S_ACCOUNT_RUN}'
+      # Use a multiline block for --set-env-vars for readability.
+      # The '|' tells YAML to treat the indented block as a single string.
+      - '--set-env-vars=GCP_PROJECT_ID=${_GCP_PROJECT_ID},APP_JSON_KEYS=${_APP_JSON_KEYS},SEC_DROPBOX=${_SEC_DROPBOX},S_ACCOUNT_DROPBOX=${_S_ACCOUNT_DROPBOX}'
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Set Public Access'
+    args:
+      - 'run'
+      - 'services'
+      - 'add-iam-policy-binding'
+      - '${_CLOUD_RUN_SERVICE}'
+      - '--member=allUsers'
+      - '--role=roles/run.invoker'
+      - '--region=${_REGION}'
+      - '--project=${_GCP_PROJECT_ID}'
+
+images:
+  - '${_YAML_IMAGE}'
+
+# This option allows unused variables from the .env file to be ignored.
+options:
+  logging: GCS_ONLY
+  substitution_option: 'ALLOW_LOOSE'
