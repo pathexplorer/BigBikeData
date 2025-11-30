@@ -3,6 +3,5 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../fit2gpx" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/../gcp_actions" vcs="Git" />
   </component>
 </project>
