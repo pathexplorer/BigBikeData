@@ -34,7 +34,7 @@ def auth_dropbox():
     logger.debug("Dropbox-client is created, checking authorization...")
     try:
         dbx.users_get_current_account()
-        logger.info("Dropbox authorization is successful")
+        logger.debug("Dropbox authorization is successful")
         return dbx
     except AuthError as e:
         logger.error(f"Authorization in Dropbox FAILED: {e}")
@@ -215,12 +215,12 @@ def connect_to_dropbox():
         processed_files = True
 
     if fit_entries:
-        logger.info(f"Found {len(fit_entries)} new/modified .fit files. Syncing to GCS...")
+        logger.debug(f"Found {len(fit_entries)} new/modified .fit files. Syncing to GCS...")
         files = download_fit_files_from_dropbox(fit_entries, dbx)
 
         # Don't pass cursor to GCS function
         copied_files = upload_fit_files_to_gcs(files)
-        logger.info(f"Copied {copied_files} .fit files to GCS")
+        logger.debug(f"Copied {copied_files} .fit files to GCS")
 
         # Only run a pipeline if new files were actually copied
         if copied_files > 0:

@@ -87,6 +87,10 @@ msgstr "Обробка..."
 msgid "Thank you! Your file is being processed. We will email the result."
 msgstr "Дякуємо! Ваш файл обробляється. Ми надішлемо вам результат електронною поштою."
 
+#: site_handler/templates/success.html:32
+msgid "Upload another file"
+msgstr "Завантажити ще файл"
+
 #: site_handler/site_handler/templates/index.html:151
 msgid "Support:"
 msgstr "Підтримка:"
@@ -118,3 +122,38 @@ msgstr "Повернутись на головну сторінку"
 #: site_handler/site_handler/static/404.html:37
 msgid "404 - Page Not Found"
 msgstr "404 - Сторінка не знайдена"
+
+# site_handler/site_handler/templates/index.html:75
+msgid "How it works"
+msgstr "Як працює сервіс"
+
+# site_handler/site_handler/templates/index.html:77
+msgid "The service cleans the FIT file by removing specific teleportation errors caused by GPS."
+msgstr "Сервіс очищає FIT файл, видаляючи специфічні телепортації, спричинені помилками GPS."
+
+# site_handler/site_handler/templates/index.html:78
+msgid "All other data (heart rate, cadence, power, and speed) from those corrected seconds is preserved."
+msgstr "Усі інші дані (пульс, каденс, потужність та швидкість) із цих виправлених секунд зберігаються."
+
+# site_handler/site_handler/templates/index.html:79
+msgid "To ensure accurate distance and speed, you must use a speed sensor with your bike computer."
+msgstr "Щоб забезпечити точну дистанцію та швидкість, необхідно використовувати на велокомп'ютері датчик швидкості."
+
+# site_handler/site_handler/templates/index.html:80
+msgid "It is recommended to pause the bike computer manually during stops (not with auto-pause). This will further improve the quality of the cleaning."
+msgstr "Рекомендується ставити велокомпютер на паузу при зупинках примусово (не автопаузою). Це ще більше покращить якість очистки."
+
+# site_handler/site_handler/templates/index.html:81
+msgid "Only very large teleportations will be corrected (for example, if you suddenly jump to Lima, Peru)."
+msgstr "Виправляються лише дуже великі телепортації (наприклад, якщо ви раптово перемістилися до Ліми, Перу)"
+
+# site_handler/site_handler/templates/index.html:82
+msgid "A download link for the cleaned file will be sent to the user's email."
+msgstr "Посилання для завантаження очищеного файлу буде надіслано на електронну пошту користувача."
+
+# site_handler/site_handler/templates/index.html:83
+msgid "All data is deleted from the server after the link expires."
+msgstr "Усі дані видаляються з сервера після закінчення терміну дії посилання."
+
+msgid "Smart cleaning FIT sports activity files with speed sensors from incorrect GPS points"
+msgstr "Спеціальне очищення файлів спортивної активності FIT з датчиком швидкості від некоректних точок GPS"

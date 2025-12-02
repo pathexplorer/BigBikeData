@@ -12,5 +12,4 @@ pandas
 lxml
 fitdecode
 python-dotenv
-datetime
 sib-api-v3-sdk

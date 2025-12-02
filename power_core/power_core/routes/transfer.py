@@ -43,7 +43,7 @@ def webhook():
         except Exception as e:
             # Include robust error handling as per your guidelines
             logger.error(f"🚨 Error processing webhook: {e}")
-            return jsonify({"status": "internal server error", "error": str(e)}), 500
+            return jsonify({"status": "internal server error"}), 500
     return None
 
     # This line should technically be unreachable if 'GET' and 'POST' are handled,

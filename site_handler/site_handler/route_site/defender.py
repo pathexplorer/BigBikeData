@@ -56,5 +56,5 @@ def restrict_direct_access():
         # Blocks traffic from any other domain (including random subdomains or IP addresses)
         abort(403, description="Invalid or unauthorized Host header.")
     
-    # Log successful access (optional, but useful for debugging)
+    # Log successful access (optional but useful for debugging)
     logger.debug(f"✅ ALLOWED: Host={host}, Fwd-Host={forwarded_host}")

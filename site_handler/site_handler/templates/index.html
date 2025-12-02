@@ -12,9 +12,13 @@
     </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+          content="{{ _('Smart cleaning FIT sports activity files with speed sensors from incorrect GPS points') }}">
     <title>Clean .fit File Service</title>
-    <!-- Use url_for to generate the correct path for both local and production -->
-    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+    <!-- Production path (commented out for local preview) -->
+     <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+    <!-- Local preview path -->
+<!--    <link href="../static/css/output.css" rel="stylesheet">-->
      <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <style>
         /* FAILSAFE LAYOUT STYLES:
@@ -68,6 +72,19 @@
             <h1 class="text-4xl font-extrabold text-center text-gray-800 tracking-tight">
                 {{ _('Clean .fit files from teleports') }}
             </h1>
+        <!-- "How it works" Section -->
+        <details class="bg-gray-100 p-3 rounded-lg cursor-pointer">
+            <summary class="font-medium text-gray-700">{{ _('How it works') }}</summary>
+            <ul class="mt-2 list-disc list-inside text-gray-600 space-y-1 text-sm">
+                <li>{{ _('The service cleans the FIT file by removing specific teleportation errors caused by GPS.') }}</li>
+                <li>{{ _('All other data (heart rate, cadence, power, and speed) from those corrected seconds is preserved.') }}</li>
+                <li>{{ _('To ensure accurate distance and speed, you must use a speed sensor with your bike computer.') }}</li>
+                <li>{{ _('It is recommended to pause the bike computer manually during stops (not with auto-pause). This will further improve the quality of the cleaning.') }}</li>
+                <li>{{ _('Only very large teleportations will be corrected (for example, if you suddenly jump to Lima, Peru).') }}</li>
+                <li>{{ _('A download link for the cleaned file will be sent to the user\'s email.') }}</li>
+                <li>{{ _('All data is deleted from the server after the link expires.') }}</li>
+            </ul>
+        </details>
 
         <!-- Flash Messages (for errors/success from Flask) -->
         {% with messages = get_flashed_messages(with_categories=true) %}

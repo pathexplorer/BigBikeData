@@ -88,7 +88,7 @@ set +e
 # The build context is the entire project root '.', which allows access to all services.
 echo "Submitting build from the project root directory..."
 gcloud builds submit . \
-    --config=wahoo.yaml \
+    --config=cloudbuild.yaml \
     --ignore-file=.dockerignore \
     --substitutions="${SUBS}" \
     --service-account="$DEPLOYER_SA_RESOURCE_URL" \

@@ -70,7 +70,7 @@ def handle_pubsub_message():
             logger.debug(f"Processing failed for {upload_id}: {e}")
             mark_processing_failed(upload_id, error_message=str(e))
             # Acknowledge the message to prevent Pub/Sub retries for this failure.
-            return f"Processing failed: {e}", 200
+            return "Processing failed", 200
         # 5. Acknowledge the message
         # Return a 204 (No Content) to tell Pub/Sub "Success, don't resend."
         return "", 204
@@ -78,4 +78,4 @@ def handle_pubsub_message():
     except Exception as e:
         # If we fail (return 500), Pub/Sub will automatically retry the message.
         logger.error(f"Error processing message: {e}")
-        return f"Internal Server Error: {e}", 500
+        return f"Internal Server Error", 500
