@@ -2,6 +2,7 @@ import os
 import sys
 from gcp_actions.client import get_any_client, get_env_and_cashed_it
 from gcp_actions.common_utils.generate import g_download_link
+from urllib.parse import urlparse
 
 # Add the project root to the Python path to allow imports
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -56,8 +57,10 @@ def test_generate_signed_url():
         # --- VERIFICATION ---
         print("\n✅ Successfully generated a signed URL!")
         print(signed_url)
-        
-        if "storage.googleapis.com" in signed_url:
+
+        parsed_url = urlparse(signed_url)
+        hostname = parsed_url.hostname or ''
+        if hostname == "storage.googleapis.com" or hostname.endswith(".storage.googleapis.com"):
             print("\n🔥 DIAGNOSIS: SUCCESS! The URL is a valid GCS link.")
             print("   This means your permissions and code are correct.")
             print("   The problem may lie elsewhere in the data being passed in production.")

@@ -1,17 +1,18 @@
 from fit2gpx import Converter
 from gcp_actions.blob_manipulation import upload_to_gcp_bucket, download_from_gcp_bucket
 from gcp_actions.client import get_env_and_cashed_it
+from gcp_actions.common_utils.timer import time_stage, show_table
 from gcp_actions.firestore_as_swith import check_swith_status, create_download_record
 from power_core.heatmap_gpx.append_function import append_gpx_via_compose
 from power_core.project_env.config import GSC_ORIG_FIT_FOLDER, DONATION_HTML_SNIPPET_MONO, DONATION_HTML_SNIPPET_PRIVAT, FRONTEND_BASE_URL
 from power_core.strava.auth import update_strava_token_if_needed
 from power_core.strava.upload import upload_fit_to_strava, poll_upload_status, update_gear
 from power_core.utilites.email_sender import send_email
-from power_core.workshop.instruments import convert_fit_to_csv, clean_gps, load_email_template
+from power_core.workshop.instruments import convert_fit_to_csv, cleaner_run, load_email_template
 import datetime
 import logging
-import os, time
-from gcp_actions.common_utils.timer import time_stage, show_table
+import os
+
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ class ActivityProcessingPipeline:
                        (e.g., gs://bucket/path/to/file.fit).
             locale: The user's language preference (e.g., 'en', 'uk'). Defaults to 'en'.
         """
+        self.bad_lines = None
         self.path_to_buckets = None
         self.user_email = user_email
         self.original_filename = original_filename
@@ -103,15 +105,17 @@ class ActivityProcessingPipeline:
         Cleans the unexplored CSV, fixes GPS problems, stores a bike model,
         and uploads the fixed CSV to GCS.
         """
-        self.bike_model, bad_lines = clean_gps(self.local_unexplored_csv_path, self.local_fixed_csv_path, pipeline)
-        if bad_lines > 0:
+        self.bike_model, self.bad_lines = cleaner_run(self.local_unexplored_csv_path, self.local_fixed_csv_path, pipeline)
+
+        if self.bad_lines > 0 or pipeline == "private":
             upload_to_gcp_bucket(self.bucket_name, self.gcs_fixed_csv_path, self.local_fixed_csv_path, "filename")
-            logger.debug(f"GPS cleaned (Bike Model: {self.bike_model}).")
+            logger.info(f"GPS cleaned (Bike Model: {self.bike_model}).")
             logger.debug(f"Uploaded fixed CSV to: {self.gcs_fixed_csv_path}")
-        elif bad_lines == 0:
+        elif self.bad_lines == 0 and pipeline == "public":
+            logger.info(f"However, there zero issues")
             pass
 
-        return bad_lines
+        return self.bad_lines
 
     def stage_04_fixed_csv_to_fit(self, mode: str ):
         """
@@ -162,7 +166,7 @@ class ActivityProcessingPipeline:
             # Create a record in Firestore for the download
             try:
                 download_id = create_download_record(
-                    bucket_name=self.bucket_name_output, # CORRECTED: Always use the output bucket
+                    bucket_name=self.bucket_name_output,
                     blob_name=self.gcs_fixed_fit_path,
                     download_filename=download_filename,
                     expiration_hours=1
@@ -179,7 +183,7 @@ class ActivityProcessingPipeline:
                     f"Error creating download record for {self.gcs_fixed_fit_path}: {e}. Emailing 'find' result skipped.")
                 return
         elif result == "not_found":
-            logger.info(f"Stage 04a: Preparing 'not found' email to {self.user_email}.")
+            logger.debug(f"Stage 04a: Preparing 'not found' email to {self.user_email}.")
 
         else:
             logger.warning(f"Unknown result type '{result}'. Emailing skipped.")
@@ -188,7 +192,8 @@ class ActivityProcessingPipeline:
         email_context = {
             "unique_ts": unique_ts,
             "original_filename": self.original_filename,
-            "download_link": download_link,  # Will be None if result is 'not_found'
+            "bad_lines": self.bad_lines,
+            "download_link": download_link,  # Will be None if a result is 'not_found'
             "donation_section_mono": DONATION_HTML_SNIPPET_MONO,
             "donation_section_privat": DONATION_HTML_SNIPPET_PRIVAT
             }
@@ -200,7 +205,8 @@ class ActivityProcessingPipeline:
         # 5. --- Send Email with Error Handling ---
         try:
             send_email(self.user_email, subject, html_body)
-            logger.info(f"Successfully sent email for result '{result}' to {self.user_email}.")
+            # the result is either "found" or "not_found"
+            logger.debug(f"Successfully sent email for result '{result}' to {self.user_email}.")
         except Exception as e:
             logger.error(f"Failed to send email to {self.user_email} for result '{result}': {e}")
 
@@ -231,7 +237,7 @@ class ActivityProcessingPipeline:
 
         # Update the heatmap, using the bike model identified in stage 3
         append_gpx_via_compose(self.local_gpx_path, self.bike_model, self.gcs_gpx_path)
-        logger.info(f"Heatmap updated for bike model: {self.bike_model}")
+        logger.debug(f"Heatmap updated for bike model: {self.bike_model}")
 
     # -----------------------------------------------------------
     # --- Pipeline Execution Styles ---
@@ -282,18 +288,18 @@ class ActivityProcessingPipeline:
 
         with time_stage("Stage 03_clean_gps_data", all_stage_times):
             branching = self.stage_03_clean_gps_data("public")
-            if branching > 0:
+        if branching > 0:
 
-                with time_stage("Stage 04_fixed_csv_to_fit", all_stage_times):
-                    self.stage_04_fixed_csv_to_fit("help_riders")
+            with time_stage("Stage 04_fixed_csv_to_fit", all_stage_times):
+                self.stage_04_fixed_csv_to_fit("help_riders")
 
-                with time_stage("Stage_04_01_email_cleaned_fit", all_stage_times):
-                    self.stage_04_01_email_cleaned_fit("find")
+            with time_stage("Stage_04_01_email_cleaned_fit", all_stage_times):
+                self.stage_04_01_email_cleaned_fit("find")
 
-            elif branching == 0:
-                with time_stage("Stage_04_01_email_cleaned_fit", all_stage_times):
-                    self.stage_04_01_email_cleaned_fit("not_found")
-                pass
+        elif branching == 0:
+            with time_stage("Stage_04_01_email_cleaned_fit", all_stage_times):
+                self.stage_04_01_email_cleaned_fit("not_found")
+            pass
 
         # Calculate the total time
         show_table(all_stage_times, "Public")

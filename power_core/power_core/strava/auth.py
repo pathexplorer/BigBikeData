@@ -73,7 +73,7 @@ def update_strava_token_if_needed():
 
         # Write the entire updated dictionary back
         sm.update_secret_json(secret_name, secrets_dict)
-        logger.debug(f"Successfully persisted updated tokens to Secret Manager: {secret_name}")
+        logger.debug(f"Successfully persisted updated tokens to Secret Manager")
 
         return new_access_token
 
