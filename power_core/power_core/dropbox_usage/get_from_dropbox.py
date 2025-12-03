@@ -191,7 +191,6 @@ def connect_to_dropbox():
 
     logger.info(f"\n--- Processing {len(all_entries)} total entries ---")
 
-    # <-- FIX: Handle both new/modified files and deletions
     fit_entries = [
         entry for entry in all_entries
         if isinstance(entry, FileMetadata)

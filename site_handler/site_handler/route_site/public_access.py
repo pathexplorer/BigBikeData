@@ -61,7 +61,6 @@ def handle_file_upload():
     file = request.files['file']
     logger.info(f"Received file object: {file}")
 
-
     user_email = request.form.get('email_address')  # Example of getting other form data
 
     if not user_email:
@@ -90,6 +89,7 @@ def handle_file_upload():
 
         gcs_unique_path = upload_to_gcp_bucket(bucket, gen_unic, file_data, "string_path", content_type)
         logger.debug(f"GCS unique path generated: {gcs_unique_path}")
+
         # Trigger Backend Pipeline via Pub/Sub
         # Publish the file location and user email for the workers to process
         message_data = {
@@ -98,7 +98,6 @@ def handle_file_upload():
             "original_filename": file.filename,
             "upload_id": upload_id,
             "locale": session.get('language', 'en')
-
         }
 
         # Publish the message

@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 bp9 = Blueprint('defender', __name__,)
 
-
 # Convert the comma-separated string into a set for fast, case-insensitive lookup
 ALLOWED_HOSTS = set(domain.strip().lower() for domain in ALLOWED_DOMAINS.split(','))
 
