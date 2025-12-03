@@ -222,7 +222,6 @@ def cleaner_run(input_path: str, output_path: str, pipeline: str):
         logger.critical(f"A fatal error occurred: {e}")
         if temp_file_name and os.path.exists(temp_file_name):
             os.remove(temp_file_name)
-
     return bike_model_id, changes_count
 
 
