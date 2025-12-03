@@ -5,7 +5,6 @@ bp4 = Blueprint('language', __name__, url_prefix='/language')
 @bp4.route('/<lang>')
 def set_language(lang=None):
 
-    # The app context is available here when the request is being handled
     if lang in current_app.config['LANGUAGES']:
         session['language'] = lang
         session.modified = True  # Explicitly mark the session as modified

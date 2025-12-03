@@ -157,7 +157,6 @@ def download_file(download_id):
             expiration_minutes=1,
             impersonate_sa=impersonate_sa
         )
-        
         return redirect(signed_url)
 
     except google_exceptions.NotFound as e:

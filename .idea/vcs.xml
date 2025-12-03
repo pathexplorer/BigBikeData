@@ -2,7 +2,6 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/power_core/gcp_actions" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../fit2gpx" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../gcp_actions" vcs="Git" />
   </component>
