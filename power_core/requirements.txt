@@ -3,6 +3,7 @@ gunicorn
 dropbox
 google-cloud-logging
 google-auth
+google-cloud-firestore
 git+https://github.com/pathexplorer/fit2gpx.git@first
 #gcp-actions[processing-worker] @ git+https://github.com/pathexplorer/gcp_actions.git@0.1.12
 ./gcp_actions[processing-worker]

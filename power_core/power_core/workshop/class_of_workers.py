@@ -1,7 +1,7 @@
 from fit2gpx import Converter
 from gcp_actions.blob_manipulation import upload_to_gcp_bucket, download_from_gcp_bucket
 from gcp_actions.client import get_env_and_cashed_it
-from gcp_actions.common_utils.timer import time_stage, show_table
+from gcp_actions.common_utils.timer import time_stage, log_duration_table
 from gcp_actions.firestore_as_swith import check_swith_status, create_download_record
 from power_core.heatmap_gpx.append_function import append_gpx_via_compose
 from power_core.project_env.config import GSC_ORIG_FIT_FOLDER, DONATION_HTML_SNIPPET_MONO, DONATION_HTML_SNIPPET_PRIVAT, FRONTEND_BASE_URL
@@ -228,13 +228,17 @@ class ActivityProcessingPipeline:
         else:
             logger.error(f"   SKIPPED: Unknown mode '{current_mode}'.")
 
-    def stage_06_fit_to_gpx_and_heatmap(self):
+    def stage_06_fit_to_gpx(self):
         """
-        Converts the fixed FIT to GPX, uploads the GPX to GCS, and updates the heatmap.
+        Converts the fixed FIT to GPX, uploads the GPX to GCS
         """
         CONVERTER.fit_to_gpx(self.local_fixed_fit_path, self.local_gpx_path)
         upload_to_gcp_bucket(self.bucket_name, self.gcs_gpx_path, self.local_gpx_path, "filename")
 
+    def stage_07_heatmap(self):
+        """
+        Updates the heatmap
+        """
         # Update the heatmap, using the bike model identified in stage 3
         append_gpx_via_compose(self.local_gpx_path, self.bike_model, self.gcs_gpx_path)
         logger.debug(f"Heatmap updated for bike model: {self.bike_model}")
@@ -250,26 +254,29 @@ class ActivityProcessingPipeline:
         logger.info("Private pipeline running")
         all_stage_times = {}
 
-        with time_stage("Stage 01_download_fit", all_stage_times):
+        with time_stage("1 Download FIT", all_stage_times):
             self.stage_01_download_fit("personal")
 
-        with time_stage("Stage 02_fit_to_unexplored_csv", all_stage_times):
+        with time_stage("2 FIT to CSV", all_stage_times):
             self.stage_02_fit_to_unexplored_csv()
 
-        with time_stage("Stage 03_clean_gps_data", all_stage_times):
+        with time_stage("3 Clean GPS data", all_stage_times):
             self.stage_03_clean_gps_data("private")
 
-        with time_stage("Stage 04_fixed_csv_to_fit", all_stage_times):
+        with time_stage("4 CSV to FIT", all_stage_times):
             self.stage_04_fixed_csv_to_fit("personal")
 
-        with time_stage("Stage 05_upload_to_strava", all_stage_times):
+        with time_stage("5 Upload to Strava", all_stage_times):
             self.stage_05_upload_to_strava()
 
-        with time_stage("Stage 06_fit_to_gpx_and_heatmap", all_stage_times):
-            self.stage_06_fit_to_gpx_and_heatmap()
+        with time_stage("6 FIT to GPX", all_stage_times):
+            self.stage_06_fit_to_gpx()
+
+        with time_stage("7 Append to Heatmap", all_stage_times):
+            self.stage_07_heatmap()
 
         # Calculate the total time
-        show_table(all_stage_times, "Private")
+        log_duration_table(all_stage_times, "Private")
 
 
     def run_repair_flow(self):
@@ -280,29 +287,29 @@ class ActivityProcessingPipeline:
         """
         logger.info("Public pipeline started")
         all_stage_times = {}
-        with time_stage("Stage 01_download_fit", all_stage_times):
+        with time_stage("1 Download FIT", all_stage_times):
             self.stage_01_download_fit("help_riders")
 
-        with time_stage("Stage 02_fit_to_unexplored_csv", all_stage_times):
+        with time_stage("2 FIT to CSV", all_stage_times):
             self.stage_02_fit_to_unexplored_csv()
 
-        with time_stage("Stage 03_clean_gps_data", all_stage_times):
+        with time_stage("3 Clean GPS data", all_stage_times):
             branching = self.stage_03_clean_gps_data("public")
         if branching > 0:
 
-            with time_stage("Stage 04_fixed_csv_to_fit", all_stage_times):
+            with time_stage("4 CSV to FIT", all_stage_times):
                 self.stage_04_fixed_csv_to_fit("help_riders")
 
-            with time_stage("Stage_04_01_email_cleaned_fit", all_stage_times):
+            with time_stage("4-a Send results in email", all_stage_times):
                 self.stage_04_01_email_cleaned_fit("find")
 
         elif branching == 0:
-            with time_stage("Stage_04_01_email_cleaned_fit", all_stage_times):
+            with time_stage("4-b Send info email", all_stage_times):
                 self.stage_04_01_email_cleaned_fit("not_found")
             pass
 
         # Calculate the total time
-        show_table(all_stage_times, "Public")
+        log_duration_table(all_stage_times, "Public")
 
 # if __name__ == '__main__':
     # Example usage (mocking a blob path)
