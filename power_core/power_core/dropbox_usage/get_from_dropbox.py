@@ -11,7 +11,7 @@ from power_core.project_env.config import (
     DROPBOX_APP_SECRET,
     DROPBOX_REFRESH_TOKEN
 )
-from dropbox.exceptions import AuthError #not necessary, but hide fake error warning
+from dropbox.exceptions import AuthError
 from dropbox.files import FileMetadata, DeletedMetadata #add types, instead dropbox.files.FileMetadata, use only Fi.
 import json
 import dropbox

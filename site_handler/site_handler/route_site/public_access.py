@@ -29,7 +29,6 @@ def allowed_file(filename):
         filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-
 @bp3.route('/', methods=['GET'])
 def index():
     """
@@ -38,6 +37,7 @@ def index():
     # current_app.logger.info(f"--- Index Route: Session Language = {session.get('language')} ---")
     # The '.' refers to the root directory of the application
     return render_template('index.html')
+
 @bp3.route('/robots.txt')
 def robots_txt():
     """Serves the robots.txt file from the static directory."""
@@ -46,7 +46,6 @@ def robots_txt():
     static_folder = current_app.static_folder
     return send_from_directory(static_folder, 'robots.txt', mimetype='text/plain')
 
-
 @bp3.route('/upload', methods=['POST'])
 def handle_file_upload():
     """
@@ -54,7 +53,6 @@ def handle_file_upload():
     from index.html.
     """
     upload_id = str(uuid.uuid4())
-
 
     if 'file' not in request.files:
         flash(_('No file part in the request.'), 'error')
@@ -102,8 +100,8 @@ def handle_file_upload():
             "locale": session.get('language', 'en')
 
         }
-        # Publish the message (you would need the actual Pub/Sub client here)
 
+        # Publish the message
         publish_message(GCP_TOPIC_NAME, message_data)
 
         # Clear the upload_id after a successful publication
@@ -113,13 +111,11 @@ def handle_file_upload():
         return redirect(url_for('frontend.success'))
 
     except ValueError as e:
-        # Catch configuration errors (like missing bucket name)
         flash(_(f"Configuration Error: {e}"), 'error')
         current_app.logger.error(f"Configuration Error: {e}")
         return redirect(url_for('frontend.index'))
 
     except Exception as e:
-        # Catch any other unexpected errors during upload or publish
         flash(_("An unexpected error occurred during upload or processing."), 'error')
         current_app.logger.error(f"Processing Error: {e}")
         return redirect(url_for('frontend.index'))
@@ -149,7 +145,6 @@ def download_file(download_id):
             logger.warning(f"Download attempt with expired ID: {download_id}")
             return render_template('404_expired.html', message=_("This download link has expired.")), 404
 
-        # --- PERMISSION FIX ---
         # Get the service account to impersonate, which has permission to create signed URLs.
         impersonate_sa = S_ACCOUNT_RUN
         logger.info(f"Get the service account to impersonate: {impersonate_sa}")
@@ -166,17 +161,15 @@ def download_file(download_id):
         return redirect(signed_url)
 
     except google_exceptions.NotFound as e:
-        # This is a "known" failure: the file is no longer in the bucket.
         logger.error(f"File not found in GCS during download for ID {download_id}: {e}")
         return render_template('404_expired.html', message=_("The file for this link could not be found. It may have been deleted.")), 404
     
     except Exception as e:
-        # This catches all other *unexpected* errors (permissions, database issues, etc.)
         logger.error(f"Unexpected error during download process for ID {download_id}: {e}")
         abort(500)
 
 
 @bp3.route('/success', methods=['GET'])
 def success():
-    """Shows a confirmation page."""
+    """Shows a confirmation page with a proposal to open the main page again."""
     return render_template('success.html')

@@ -2,7 +2,7 @@ import subprocess
 import re
 from pathlib import Path
 import os
-from typing import Iterable, Tuple, Any, Generator
+from typing import Iterable, Any, Generator
 import tempfile
 
 import logging
@@ -84,9 +84,6 @@ def convert_fit_to_csv(input_path, output_path, mode):
     elif flag == "-c":
         pass
 
-
-
-    # --- Path Correction ---
     # Get the directory where this Python script is located.
     # In the container, this will be /app/power_core/workshop
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -109,7 +106,6 @@ def convert_fit_to_csv(input_path, output_path, mode):
         raise FileNotFoundError(f"FATAL: The JAR file could not be found at the expected path: {jar_path}")
     subprocess.run(command, check=True)
     #subprocess.run(command, check=True, shell=False)
-
 
 
 def label_bike(data_stream: Iterable[str]) -> str:
@@ -152,6 +148,7 @@ def clean_data_stream(data_stream: Iterable[str]) -> Generator[tuple[str, bool, 
     SERIAL_NUMBER_PATTERN = re.compile(r'serial_number,"SN\.(\d+)"')
     changes_count = 0
     validation_failed = False
+
     # 1. Get bike model (needs to be done before the main loop starts consuming the stream)
     # Note: If label_bike consumes the stream, you must find another way
     # to label the bike, perhaps by reading a small header section separately.
@@ -232,10 +229,8 @@ def cleaner_run(input_path: str, output_path: str, pipeline: str):
 def load_email_template(locale: str, result : str) -> tuple[str, str]:
     """
     Loads email subject and body from template files based on locale.
-
-    Args:
-        locale: The desired language ('en', 'uk', etc.).
-        result: 'find' or 'not_found'
+    :param locale: The desired language ('en', 'uk', etc.).
+    :param result: 'find' or 'not_found'
 
     Returns:
         A tuple containing the (subject_template, body_template).
