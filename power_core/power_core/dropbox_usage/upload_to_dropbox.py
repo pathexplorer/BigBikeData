@@ -15,8 +15,8 @@ bucket = get_bucket("GCS_BUCKET_NAME")
 def upload_custom_files_session(gcs_folder: str):
     """
     curl -X POST https://{LINK}.app/upload_custom_files_session \
-  -H "Content-Type: application/json" \
-  -d '{"gcs_folder": "heatmap/"}'
+    -H "Content-Type: application/json" \
+    -d '{"gcs_folder": "heatmap/"}'
     """
     blobs = list(bucket.list_blobs(prefix=gcs_folder))
     if not blobs:
