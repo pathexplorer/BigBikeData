@@ -58,14 +58,23 @@ class ActivityProcessingPipeline:
         self.locale = locale
         self.file_data = file_data
 
-        if original_filename:
-            self.filename = original_filename
-        elif blob_path:
-            self.filename = os.path.basename(blob_path)
-        else:
-            raise ValueError("Either original_filename or blob_path must be provided.")
+        self._unique_prefix = str(uuid.uuid4())
+        _, ext = os.path.splitext(original_filename) if original_filename else ("", "")
+        allowed_exts = {'.fit', '.csv'}
+        if ext not in allowed_exts:
+            ext = '.fit'
+        self.filename = f"{self._unique_prefix}{ext}"
+        self.base_name = f"{self._unique_prefix}"
 
-        self.base_name = os.path.splitext(self.filename)[0]
+        # if original_filename:
+        #     self.filename = original_filename
+        # elif blob_path:
+        #     self.filename = os.path.basename(blob_path)
+        # else:
+        #     raise ValueError("Either original_filename or blob_path must be provided.")
+        # self.base_name = os.path.splitext(self.filename)[0]
+
+
         self.bike_model = None # To be determined in the cleaning stage
 
         # Local temporary file paths
