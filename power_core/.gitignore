@@ -12,6 +12,8 @@ power_core/heatmap_gpx/local/
 power_core/project_env/local/
 power_core/strava/local/
 power_core/workshop/tests/
+_local_tests/
+docs/scripts/startup/script_progress.log
 power_core/_old/
 power_core/other/a.json
 power_core/project_env/token_api.env
