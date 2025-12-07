@@ -10,3 +10,6 @@ keys.env
 # Ignore python cache files
 __pycache__/
 *.pyc
+
+# Ignore XML files
+*.xml
