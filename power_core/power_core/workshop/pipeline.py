@@ -1,45 +1,57 @@
-import json
 from datetime import datetime, timezone
-from google.cloud.exceptions import NotFound
 from gcp_actions.client import get_bucket
-from power_core.workshop.class_of_workers import ActivityProcessingPipeline
+from power_core.workshop.workers import ActivityProcessingPipeline
+from gcp_actions.firestore_box.json_manipulations import FirestoreMagic
 import logging
+
 logger = logging.getLogger(__name__)
 
-bucket_name="GCS_BUCKET_NAME"
 
-def run_pipeline_on_gcs(bucket_name1: str, path_prefix, manifest_blob_path):
+def list_gcs_files(bucket_name, path_prefix):
+    client = get_bucket(bucket_name)
+    blobs = client.list_blobs(prefix=path_prefix)
+    return [f'{blob.name}' for blob in blobs]
+    # return [f'gs://{bucket_name}/{blob.name}' for blob in blobs]
+
+
+def run_pipeline_on_gcs(bucket_name: str, path_prefix):
     """
     Start the Second stage of a pipeline
     """
+    fires = FirestoreMagic("cursors", "storage_cursor")
     # 1. Get all files in the folder in GCS
-    all_files = list_gcs_files(bucket_name1, path_prefix)
-    # 2. Load the manifest of processing files
-    processed_files = load_processed_manifest(manifest_blob_path)
+    all_files = list_gcs_files(bucket_name, path_prefix)
+
+    # 2. Load the manifest of previously processing files
+    processed_files = fires.load_firejson()
+    logger.debug(f"Found {len(processed_files)} records")
+
     for blob_path in all_files:
         if blob_path not in processed_files:
+            fp = ActivityProcessingPipeline(blob_path, bucket_name)
+            fp.run_full_pipeline()
             logger.debug(f"Now Processing {blob_path}")
-            full_pipeline = ActivityProcessingPipeline(blob_path, bucket_name)
-            full_pipeline.run_full_pipeline()
-            mark_as_processed(manifest_blob_path, blob_path)
+            # look_changes_files = fires.load_firejson()
+            # logger.debug(f"Found {len(processed_files)} records after processing {blob_path}")
+            processed_files[blob_path] = datetime.now(timezone.utc).isoformat()  #python 3.10 dependency instead .utcnow()
+            fires.set_firejson(processed_files, True)
+        else:
+            logger.warning(f"This {blob_path} already exists")
+            return
 
-def list_gcs_files(bucket_name1, prefix):
-    bucket = get_bucket(bucket_name)
-    blobs = bucket.list_blobs(prefix=prefix)
-    return [f'gs://{bucket_name1}/{blob.name}' for blob in blobs]
 
-def load_processed_manifest(manifest_blob_path):
-    bucket = get_bucket(bucket_name)
-    blob = bucket.blob(manifest_blob_path)
-    try:
-        return json.loads(blob.download_as_text())
-    except NotFound:
-        blob.upload_from_string("{}", content_type="application/json")
-        return {}
+# if __name__ == '__main__':
+#     # data = {}
+#     fires1 = FirestoreMagic("cursors", "storage_cursor")
+#     # DELETE FIELD
+#     print(len(fires1.load_firejson()))
+#     field = "2023-01-15-074849-elemnt roam d8c7-176-0.fit"
+#     # field = "test"
+#     fires1.delete_field_firejson(field)
+#     print(len(fires1.load_firejson()))
 
-def mark_as_processed(manifest_blob_path, file_path1):
-    bucket = get_bucket(bucket_name)
-    manifest = load_processed_manifest(manifest_blob_path)
-    manifest[file_path1] = datetime.now(timezone.utc).isoformat()  #python 3.10 dependency instead .utcnow()
-    blob = bucket.blob(manifest_blob_path)
-    blob.upload_from_string(json.dumps(manifest), content_type='application/json')
+    # processed_files = fires1.create_firejson("storage_cursor", data)
+
+    # processed_files1 = fires1.load_firejson()
+    # print(len(processed_files1))
+    # print(type(processed_files))

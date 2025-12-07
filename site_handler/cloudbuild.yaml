@@ -16,8 +16,8 @@ steps:
       - '--platform=managed'
       - '--allow-unauthenticated'
       - '--service-account=${_S_ACCOUNT_RUN}'
-      - '--set-env-vars=GCP_PROJECT_ID=${_GCP_PROJECT_ID},APP_JSON_KEYS=${_APP_JSON_KEYS}'
-      - '--clear-secrets'
+      - '--set-env-vars=GCP_PROJECT_ID=${_GCP_PROJECT_ID},S_ACCOUNT_RUN=${_S_ACCOUNT_RUN}'
+      - '--set-secrets=FLASK_SECRET_KEY=flask-secret-key:latest'
 
 images:
   - '${_YAML_IMAGE_PUB}'

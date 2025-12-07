@@ -2,16 +2,17 @@ from fit2gpx import Converter
 from gcp_actions.blob_manipulation import upload_to_gcp_bucket, download_from_gcp_bucket
 from gcp_actions.client import get_env_and_cashed_it
 from gcp_actions.common_utils.timer import time_stage, log_duration_table
-from gcp_actions.firestore_as_swith import check_swith_status, create_download_record
+from gcp_actions.firestore_as_swith import check_swith_status
+from gcp_actions.firestore_box.json_manipulations import FirestoreMagic
+from google.cloud import firestore
 from power_core.heatmap_gpx.append_function import append_gpx_via_compose
 from power_core.project_env.config import GSC_ORIG_FIT_FOLDER, DONATION_HTML_SNIPPET_MONO, DONATION_HTML_SNIPPET_PRIVAT, FRONTEND_BASE_URL
 from power_core.strava.auth import update_strava_token_if_needed
 from power_core.strava.upload import upload_fit_to_strava, poll_upload_status, update_gear
 from power_core.utilites.email_sender import send_email
 from power_core.workshop.instruments import convert_fit_to_csv, cleaner_run, load_email_template
-import datetime
-import logging
-import os
+from typing import Literal
+import logging, os, uuid, datetime
 
 
 logger = logging.getLogger(__name__)
@@ -26,21 +27,26 @@ class ActivityProcessingPipeline:
     including download, GPS cleaning, re-encoding, and upload to Strava/Heatmap.
     Error Handling: by timer.py
     """
+    type Locale = Literal[
+        "en",
+        "uk"
+    ]
     def __init__(
             self,
-            blob_path: str,
+            blob_path: str | None,
             bucket_name: str,
             bucket_name_output: str | None = None,
             user_email: str | None = None,
             original_filename: str | None = None,
-            locale: str = 'en'
+            locale: Locale = 'en',
+            file_data: bytes | None = None
     ):
         """
-        Initializes the pipeline with the source GCS blob path and sets up local paths.
-        Args:
-            blob_path: The full GCS path of the original .FIT file
-                       (e.g., gs://bucket/path/to/file.fit).
-            locale: The user's language preference (e.g., 'en', 'uk'). Defaults to 'en'.
+        Initializes the pipeline with the source GCS blob path or direct file data.
+        :param blob_path: The full GCS path of the .FIT file. Can be None if file_data is provided.
+        :param bucket_name: The GCS bucket name.
+        :param file_data: Raw bytes of the file, if not downloading from GCS.
+        :param locale: The user's language preference
         """
         self.bad_lines = None
         self.path_to_buckets = None
@@ -50,7 +56,15 @@ class ActivityProcessingPipeline:
         self.bucket_name = bucket_name
         self.blob_path = blob_path
         self.locale = locale
-        self.filename = os.path.basename(blob_path)
+        self.file_data = file_data
+
+        if original_filename:
+            self.filename = original_filename
+        elif blob_path:
+            self.filename = os.path.basename(blob_path)
+        else:
+            raise ValueError("Either original_filename or blob_path must be provided.")
+
         self.base_name = os.path.splitext(self.filename)[0]
         self.bike_model = None # To be determined in the cleaning stage
 
@@ -70,14 +84,33 @@ class ActivityProcessingPipeline:
 
         logger.debug(f"Pipeline initialized for activity: {self.filename}")
 
-    def stage_01_download_fit(self, mode: str ):
+    type Mode = Literal[
+        "private",
+        "public"
+    ]
+    def stage_01_download_fit(self, mode: Mode):
         """
-        Downloads the original .FIT file from GCS to the local temporary directory.
+        Downloads the original .FIT file from GCS to a local temp directory
+        or writes it from memory if file_data is present.
         """
+        if self.file_data:
+            logger.debug(f"🌍 Stage 01: Writing FIT from memory to: {self.local_fit_path}")
+            try:
+                with open(self.local_fit_path, 'wb') as f:
+                    f.write(self.file_data)
+                logger.debug(f"Success: .fit written to VM at: {self.local_fit_path}")
+            except Exception as e:
+                logger.error(f"Failed to write file data to local path: {e}")
+                raise
+            return
+
         user_project = None
-        if mode == "personal":
+        if mode == "private":
+            # use private bucket
             self.path_to_buckets = self.gcs_orig_path
-        elif mode == "help_riders":
+        elif mode == "public":
+            if not self.blob_path:
+                raise ValueError("blob_path must be provided when file_data is not used.")
             self.path_to_buckets = self.blob_path
             user_project = get_env_and_cashed_it("GCP_PROJECT_ID")
 
@@ -147,7 +180,6 @@ class ActivityProcessingPipeline:
 
         unique_ts = int(datetime.datetime.now().timestamp())
         download_link = None
-        email_context = {}
 
         # Load templates from files
         try:
@@ -164,14 +196,19 @@ class ActivityProcessingPipeline:
             download_filename = f"{base_orig_name}_clean.fit"
 
             # Create a record in Firestore for the download
+            download_id = str(uuid.uuid4())
+            data = {
+            'bucket_name': self.bucket_name_output,
+            'blob_name': self.gcs_fixed_fit_path,
+            'download_filename': download_filename,
+            'created_at': firestore.SERVER_TIMESTAMP,
+            'expires_at': datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=1)
+        }
+
             try:
-                download_id = create_download_record(
-                    bucket_name=self.bucket_name_output,
-                    blob_name=self.gcs_fixed_fit_path,
-                    download_filename=download_filename,
-                    expiration_hours=1
-                )
-                if not download_id:
+                fs = FirestoreMagic("download_links", download_id)
+                create = fs.set_firejson(data)
+                if not create:
                     logger.error(
                         f"Failed to create download record for GCS path: {self.gcs_fixed_fit_path}. Emailing 'find' result skipped.")
                     return
@@ -195,7 +232,7 @@ class ActivityProcessingPipeline:
             "bad_lines": self.bad_lines,
             "download_link": download_link,  # Will be None if a result is 'not_found'
             "donation_section_mono": DONATION_HTML_SNIPPET_MONO,
-            "donation_section_privat": DONATION_HTML_SNIPPET_PRIVAT
+            "donation_section_private": DONATION_HTML_SNIPPET_PRIVAT
             }
         try:
             html_body = body_template.format(**email_context)
@@ -233,13 +270,14 @@ class ActivityProcessingPipeline:
         Converts the fixed FIT to GPX, uploads the GPX to GCS
         """
         CONVERTER.fit_to_gpx(self.local_fixed_fit_path, self.local_gpx_path)
+
+        # Storage Audit: for appending by compose method
         upload_to_gcp_bucket(self.bucket_name, self.gcs_gpx_path, self.local_gpx_path, "filename")
 
     def stage_07_heatmap(self):
         """
-        Updates the heatmap
+        Updates the heatmap, using the bike model identified in stage 3
         """
-        # Update the heatmap, using the bike model identified in stage 3
         append_gpx_via_compose(self.local_gpx_path, self.bike_model, self.gcs_gpx_path)
         logger.debug(f"Heatmap updated for bike model: {self.bike_model}")
 
@@ -255,7 +293,7 @@ class ActivityProcessingPipeline:
         all_stage_times = {}
 
         with time_stage("1 Download FIT", all_stage_times):
-            self.stage_01_download_fit("personal")
+            self.stage_01_download_fit("private")
 
         with time_stage("2 FIT to CSV", all_stage_times):
             self.stage_02_fit_to_unexplored_csv()
@@ -288,7 +326,7 @@ class ActivityProcessingPipeline:
         logger.info("Public pipeline started")
         all_stage_times = {}
         with time_stage("1 Download FIT", all_stage_times):
-            self.stage_01_download_fit("help_riders")
+            self.stage_01_download_fit("public")
 
         with time_stage("2 FIT to CSV", all_stage_times):
             self.stage_02_fit_to_unexplored_csv()

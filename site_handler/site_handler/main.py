@@ -4,11 +4,21 @@ from gcp_actions.common_utils.init_config import load_and_inject_config
 from gcp_actions.common_utils.handle_logs import run_handle_logs
 import logging
 
-
 logger = logging.getLogger(__name__)
 run_handle_logs()
 
-# --- 1. Define the Application Factory ---
+
+# --- 1. Application Startup Logic ---
+try:
+    load_and_inject_config()
+    logger.debug("Configuration loaded successfully")
+
+except Exception as e:
+    # This catches errors in the config loading process (e.g., API failure, missing secrets)
+    logger.critical(f"FATAL ERROR: Could not load configuration. {e}")
+    sys.exit(1)
+
+# --- 2. Define the Application Factory ---
 def create_app():
     """
     Application factory function.
@@ -23,12 +33,12 @@ def create_app():
     from site_handler.route_site.language import bp4 as language_bp
     from site_handler.route_site.defender import bp9 as defender
     from site_handler.route_site.app_config_module import set_or_get_app_secret
-
     from site_handler.utilites.babel_config import init_babel
-    # --- Flask App Initialization ---
 
+    # --- Flask App Initialization ---
     flask_app = Flask(__name__)
     flask_app.config['SECRET_KEY'] = set_or_get_app_secret()
+
     # Initialize extensions
     init_babel(flask_app)
 
@@ -74,24 +84,13 @@ def create_app():
             SESSION_COOKIE_PATH='/'
         )
 
-    # --- Blueprint Registration ---
     flask_app.register_blueprint(defender)
     flask_app.register_blueprint(frontend)
     flask_app.register_blueprint(language_bp)
 
     return flask_app
 
-# --- 2. Application Startup Logic ---
-try:
-    list_of_secret_env_vars = ["APP_JSON_KEYS"]
-    load_and_inject_config(list_of_secret_env_vars)
-    logger.debug("Configuration loaded successfully from Secret Manager/Firestore.")
-
-except Exception as e:
-    # This catches errors in the config loading process (e.g., API failure, missing secrets)
-    logger.critical(f"FATAL ERROR: Could not load configuration. {e}")
-    sys.exit(1)
-
+# 3 -- Run app ---
 app = create_app()
 
 # --- Main Execution ---

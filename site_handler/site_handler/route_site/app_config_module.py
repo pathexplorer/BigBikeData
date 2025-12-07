@@ -1,7 +1,6 @@
 import os
 import logging
 import keyring
-from site_handler.utilites.site_config import FLASK_SECRET_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +13,7 @@ def set_or_get_app_secret() -> str:
     3. If not found and in a cloud environment, it raises an error.
     """
     # 1. Prioritize Environment Variable
-    secret_key = FLASK_SECRET_KEY
+    secret_key = os.environ.get('FLASK_SECRET_KEY')
     if secret_key:
         logger.debug("Loaded FLASK_SECRET_KEY from environment variable.")
         return secret_key

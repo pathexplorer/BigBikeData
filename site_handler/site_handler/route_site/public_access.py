@@ -2,14 +2,15 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
     session, abort
 from flask_babel import _
 import uuid
-from gcp_actions.blob_manipulation import upload_to_gcp_bucket, generate_unique_filename
+import base64
 from gcp_actions.pubsub import publish_message
 from gcp_actions.common_utils.local_runner import check_cloud_or_local_run
-from site_handler.utilites.site_config import GCP_TOPIC_NAME, S_ACCOUNT_RUN
+from site_handler.utilites.site_config import GCP_TOPIC_NAME
 from gcp_actions.client import get_any_client
 from gcp_actions.common_utils.generate import g_download_link
 from datetime import datetime, timezone
 from google.api_core import exceptions as google_exceptions
+import os
 
 
 import logging
@@ -21,7 +22,7 @@ bp3 = Blueprint('frontend', __name__, url_prefix='/')
 
 # --- Configuration ---
 ALLOWED_EXTENSIONS = {'fit'}
-bucket = "GCS_PUB_INPUT_BUCKET"
+
 
 def allowed_file(filename):
     """Helper to check file extension."""
@@ -76,24 +77,14 @@ def handle_file_upload():
         return redirect(url_for('frontend.index'))
 
     try:
-        # Upload to GCS
-        # 2. Robust File Size Measurement
-        file_stream = file.stream
-
-        # file.stream provides the file content without saving it to the local disk
-        gen_unic = generate_unique_filename(file.filename, "riders_bucket")
-
-        file_stream.seek(0)
-        file_data = file_stream.read()
-        content_type = 'application/octet-stream'
-
-        gcs_unique_path = upload_to_gcp_bucket(bucket, gen_unic, file_data, "string_path", content_type)
-        logger.debug(f"GCS unique path generated: {gcs_unique_path}")
+        # Read file data from the stream
+        file.stream.seek(0)
+        file_data = file.stream.read()
 
         # Trigger Backend Pipeline via Pub/Sub
-        # Publish the file location and user email for the workers to process
+        # Publish the file content and user email for the workers to process
         message_data = {
-            "gcs_path": gcs_unique_path,
+            "file_data": base64.b64encode(file_data).decode('utf-8'),
             "user_email": user_email,
             "original_filename": file.filename,
             "upload_id": upload_id,
@@ -124,6 +115,7 @@ def download_file(download_id):
     """
     Handles a download request by validating a UUID and generating a short-lived signed URL.
     """
+    # todo There present specify action as reaction at not existing document. But Class FireMagic not handled it.
     db = get_any_client("firestore")
     doc_ref = db.collection("download_links").document(str(download_id))
     
@@ -145,7 +137,7 @@ def download_file(download_id):
             return render_template('404_expired.html', message=_("This download link has expired.")), 404
 
         # Get the service account to impersonate, which has permission to create signed URLs.
-        impersonate_sa = S_ACCOUNT_RUN
+        impersonate_sa = os.environ.get("S_ACCOUNT_RUN")
         logger.info(f"Get the service account to impersonate: {impersonate_sa}")
 
         # If valid, generate a very short-lived URL for the actual download

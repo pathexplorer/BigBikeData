@@ -48,19 +48,19 @@ def upload_custom_files_session(gcs_folder: str):
                 chunk = stream.read(config.CHUNK_SIZE)
                 if not chunk:
                     dbx.files_upload_session_finish(b"", cursor, commit)
-                    print("Break reached")
+                    logger.info("Break reached")
                     break
                 if len(chunk) < config.CHUNK_SIZE:
                     dbx.files_upload_session_finish(chunk, cursor, commit)
-                    print(f"Committed {len(chunk)} bytes")
+                    logger.info(f"Committed {len(chunk)} bytes")
                     break
                 else:
                     dbx.files_upload_session_append_v2(chunk, cursor)
                     cursor.offset += len(chunk)
-                    print(f"Else committed {len(chunk)} bytes")
+                    logger.info(f"Else committed {len(chunk)} bytes")
             logger.info(f"Uploaded to Dropbox: {dropbox_path}")
             uploaded.append(dropbox_path)
-            print("Results:", uploaded)
+            logger.info("Results:", uploaded)
         except Exception as e:
             logger.error(f"Upload failed: {e}")
     return jsonify({"status": "completed", "uploaded_files": uploaded}), 200
