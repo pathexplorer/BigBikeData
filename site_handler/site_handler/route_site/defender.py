@@ -1,5 +1,4 @@
 from flask import Blueprint, request, abort
-import os
 import logging
 from site_handler.utilites.site_config import ALLOWED_DOMAINS
 
@@ -9,8 +8,6 @@ bp9 = Blueprint('defender', __name__,)
 
 # Convert the comma-separated string into a set for fast, case-insensitive lookup
 ALLOWED_HOSTS = set(domain.strip().lower() for domain in ALLOWED_DOMAINS.split(','))
-
-logger.debug(f"Loaded ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 
 
 def extract_hostname(host_header: str) -> str:
@@ -55,5 +52,5 @@ def restrict_direct_access():
         # Blocks traffic from any other domain (including random subdomains or IP addresses)
         abort(403, description="Invalid or unauthorized Host header.")
     
-    # Log successful access (optional but useful for debugging)
-    logger.debug(f"✅ ALLOWED: Host={host}, Fwd-Host={forwarded_host}")
+    # Log successful access
+    # logger.debug(f"✅ ALLOWED: Host={host}, Fwd-Host={forwarded_host}")

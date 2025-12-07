@@ -47,6 +47,7 @@ try:
     FRONTEND_BASE_URL=os.environ.get("FRONTEND_BASE_URL")
     DONATION_HTML_SNIPPET_MONO = os.environ.get("DONATION_HTML_SNIPPET_MONO", "")
     DONATION_HTML_SNIPPET_PRIVAT = os.environ.get("DONATION_HTML_SNIPPET_PRIVAT", "")
+    LOGGING_LEVEL=os.environ.get("LOGGING_LEVEL")
 
     # VERSION MANAGEMENT
     BACKEND_TAG=os.environ.get("BACKEND_TAG")
@@ -68,9 +69,7 @@ DROPBOX_HEATMAP = "heatmap"
 GSC_HEATMAP_PATH = "heatmap"
 HEATMAP_FILES = ['mtb.gpx','gravel.gpx']
 CHUNK_SIZE = 8 * 1024 * 1024  # 8MB
-# Indexes
-CURSOR_BLOB = "tmp/dropbox_cursor.json"
-MAINFEST_GSC_PATH = f"{CLOUD_RUN_SERVICE}/manifests.json"
+
 
 
 

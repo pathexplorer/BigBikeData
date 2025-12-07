@@ -1,4 +1,5 @@
-from flask import Blueprint, session, redirect, url_for, request, current_app
+from flask import Blueprint, session, redirect, url_for, current_app
+
 bp4 = Blueprint('language', __name__, url_prefix='/language')
 
 

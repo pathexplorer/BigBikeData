@@ -5,9 +5,10 @@ After all, delete an original GPX file of activity
 import os
 import re
 from power_core.project_env.config import LOCAL_TMP
-from gcp_actions.client import get_bucket, get_any_client
+from gcp_actions.client import get_bucket
 from gcp_actions.blob_manipulation import upload_to_gcp_bucket, delete_blob
 from google.cloud import firestore
+from gcp_actions.firestore_box.json_manipulations import FirestoreMagic
 
 import logging
 
@@ -18,6 +19,7 @@ bucket_name = "GCS_BUCKET_NAME"
 
 def extract_first_time_tag(file_path: str) -> str | None:
     """
+    Get a timestamp of activity from a GPX file
     :param file_path:
     :return:
     """
@@ -79,61 +81,59 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
     """
     gpx_gcs_path: if enable functional for delete a GPX file after appending to heatmap and GIS analyze (coming soon)
     """
+    # Get name of bucket from environment
     bucket = get_bucket(bucket_name)
-    db = get_any_client("firestore")
+
+    # Can only decrease if needed, not increase, its platform restricts
     max_compose = 32
 
     # Forming name list for branch
-    branch = {
-            'b7647614': ['mtb', 'mtb_index.txt', 'mtb_compose_state.json'],
-            'b8850168': ['gravel', 'gravel_index.txt', 'gravel_compose_state.json'],
-            'b0000000': ['unknown', 'unknown_index.txt', 'unknown_compose_state.json'],
-    }.get(bike_model)
+    bm = FirestoreMagic(
+        "bikes",
+        "models"
+    )
+    load_bike_models = bm.load_firejson()
+    branch = load_bike_models.get(bike_model)
     if branch is None:
         logger.warning(f"Unknown bike_model: {bike_model}")
         return
 
-    gpx_name, index_name, compose_name = branch
+    gpx_name, index_name, compose_name, name_bike = branch
     index_doc_name = index_name.replace('.txt', '')
 
-
-    # Load state from the Firestore
-    specs_ref = db.collection('heatmap').document('specs')
-    specs_doc = specs_ref.get()
-    if specs_doc.exists:
-        specs_data = specs_doc.to_dict()
-        state = specs_data.get(gpx_name)
-        if not state:
-            # This case can happen if a new bike type is added but not yet in Firestore
-            ver = '00'
-            state = {
+    ver = '00'
+    base_data = {
                 "main_blob_name": f"heatmap/{gpx_name}_v{ver}.gpx",
                 "compose_count": 0,
                 "version": 0,
             }
-    else:
-        # Create an initial spec doc if it doesn't exist
-        logger.warning("Can't find 'specs' document in 'heatmap' collection. Creating a new one.")
-        initial_specs = {
-            "gravel": {"main_blob_name": "heatmap/gravel_v00.gpx", "compose_count": 0, "version": 0},
-            "mtb": {"main_blob_name": "heatmap/mtb_v00.gpx", "compose_count": 0, "version": 0},
-            "unknown": {"main_blob_name": "heatmap/unknown_v00.gpx", "compose_count": 0, "version": 0},
-        }
-        specs_ref.set(initial_specs)
-        state = initial_specs.get(gpx_name)
 
-    main_blob_name = state["main_blob_name"]
-    compose_count = state["compose_count"]
-    version = state["version"]
+    fs = FirestoreMagic(
+        "heatmap",
+        "specs",
+        placeholder_full=base_data
+    )
+
+    state = fs.load_firejson()
+    """ Loaded state from the Firestore.\n 
+    Get value {"main_blob_name": "heatmap/...._v00.gpx", "compose_count": 0, "version": 0}
+    """
+
+    # Load data form loaded state
+    main_blob_name = state[gpx_name]["main_blob_name"]
+    compose_count = state[gpx_name]["compose_count"]
+    version = state[gpx_name]["version"]
 
     # Loading index from Firestore
-    index_ref = db.collection('heatmap').document(index_doc_name)
-    index_doc = index_ref.get()
-    indexed_dates = set()
-    if index_doc.exists:
-        index_data = index_doc.to_dict()
-        indexed_dates = set(index_data.get('dates', []))
+    template_index = {"dates": []}
+    fs_index = FirestoreMagic(
+        "heatmap",
+        index_doc_name,
+        placeholder_full=template_index
+    )
+    index_data = fs_index.load_firejson()
 
+    indexed_dates = set(index_data.get('dates', []))
 
     # Extract date
     first_date = extract_first_time_tag(local_gpx)
@@ -149,6 +149,7 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
 
     # Loaded fragment to bucket
     fragment_blob_name = f"heatmap/fragments/{os.path.basename(local_gpx)}"
+    # At this time local_gpx is stripped
     upload_to_gcp_bucket(bucket_name, fragment_blob_name, local_gpx, "filename")
 
     # Union
@@ -196,11 +197,13 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
         "compose_count": compose_count,
         "version": version
     }
-    specs_ref.update({f'{gpx_name}': state})
+    upd_spec = {f'{gpx_name}': state}
+    fs.set_firejson(upd_spec, True)
     logger.debug(f"State updated in Firestore: compose_count={compose_count}, version={version}")
 
     # Update index in Firestore
-    index_ref.set({'dates': firestore.ArrayUnion([first_date])}, merge=True)
+    upd_index = {'dates': firestore.ArrayUnion([first_date])}
+    fs_index.set_firejson(upd_index, True)
     logger.debug("Index activities updated in Firestore.")
 
     # Delete fragment

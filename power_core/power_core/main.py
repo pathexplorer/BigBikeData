@@ -4,9 +4,6 @@ from gcp_actions.common_utils.init_config import load_and_inject_config
 from gcp_actions.common_utils.handle_logs import run_handle_logs
 import logging
 
-# --- 0. Configure Logging and Load Config ---
-# These MUST run before any other application imports to ensure
-# logs and environment variables are set up correctly.
 run_handle_logs()
 logger = logging.getLogger(__name__)
 
@@ -26,8 +23,7 @@ def create_app():
     Application factory function.
     Initializes Flask application and registers blueprints.
     """
-    # CRITICAL: Imports are inside the factory to prevent them from running
-    # before the configuration is loaded.
+
     from flask import Flask
     from power_core.routes.upload_back import bp1 as upload_bp
     from power_core.routes.transfer import bp2 as transfer_bp

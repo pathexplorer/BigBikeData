@@ -1,8 +1,8 @@
-import subprocess
-import re
 from pathlib import Path
-import os
 from typing import Iterable, Any, Generator
+import os
+import re
+import subprocess
 import tempfile
 
 import logging
@@ -140,8 +140,8 @@ def clean_data_stream(data_stream: Iterable[str]) -> Generator[tuple[str, bool, 
     """
     Processes a stream of text lines, applying cleaning and yielding results.
     :param data_stream: An iterable object yielding file lines (e.g., the file object itself).
-    Yields:
-        A tuple containing the cleaned line (str) and the count of changes made (int).
+    :return: yield - a tuple containing the cleaned line (str) and the count of changes made (int).
+
     """
     # Pre-compile regex patterns for efficiency
     LAT_PATTERN = re.compile(r'position_lat,"(-?\d+)",semicircles,position_long,"-?\d+",semicircles,')
