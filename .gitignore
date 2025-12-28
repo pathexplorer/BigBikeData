@@ -13,3 +13,6 @@ __pycache__/
 
 # Ignore XML files
 *.xml
+
+# Ignore local configuration overrides
+local_config.json

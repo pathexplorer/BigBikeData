@@ -1,36 +1,25 @@
-"""
-Running before a Fit file will be uploaded to strava
-"""
 import time, os, requests
 from gcp_actions.secret_manager import SecretManagerClient
+from gcp_actions.common_utils.timer import run_timer
 import logging
-from power_core.project_env.config import (
-    STRAVA_APP_ID,
-    STRAVA_CLIENT_SECRET,
-    STRAVA_ACCESS_TOKEN,
-    STRAVA_REFRESH_TOKEN,
-    EXPIRES_AT,
-    GCP_PROJECT_ID,
-    s_email_dropbox,
-    SEC_DROPBOX
-)
+from power_core.project_env.config import GCP_PROJECT_ID,s_email_dropbox, SEC_DROPBOX
 
 logger = logging.getLogger(__name__)
 
+@run_timer
 def update_strava_token_if_needed():
     """
     Get a new access token because it usually already expired (valid only 6 hours)
     Refresh token is persistent and doesn't need to periodically renew
     :return:  a new access token
     """
-
-    client_id = STRAVA_APP_ID
-    client_secret = STRAVA_CLIENT_SECRET
-    refresh_token = STRAVA_REFRESH_TOKEN
-    expires_at = int(EXPIRES_AT)  # stored as a Unix timestamp
+    client_id = os.environ.get("STRAVA_APP_ID")
+    client_secret = os.environ.get("STRAVA_CLIENT_SECRET")
+    refresh_token = os.environ.get("STRAVA_REFRESH_TOKEN")
+    expires_at = int(os.environ.get("EXPIRES_AT"))  # stored as a Unix timestamp
     now = int(time.time())
     if now < expires_at - 300:  # 5-minute buffer
-        return STRAVA_ACCESS_TOKEN
+        return os.environ.get("STRAVA_ACCESS_TOKEN")
 
     # Token is expiring, updating
     url = "https://www.strava.com/oauth/token"
@@ -83,9 +72,3 @@ def update_strava_token_if_needed():
     except Exception as e:
         logger.critical(f"An unexpected error occurred during token refresh and update: {e}")
         raise
-
-if __name__ == "__main__":
-    print("")
-
-
-

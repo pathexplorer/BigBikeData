@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_babel import _
 import uuid
 import base64
-from gcp_actions.pubsub import publish_message
+from gcp_actions.pubsub import publish_to_pubsub
 from gcp_actions.common_utils.local_runner import check_cloud_or_local_run
 from site_handler.utilites.site_config import GCP_TOPIC_NAME
 from gcp_actions.client import get_any_client
@@ -32,37 +32,27 @@ def allowed_file(filename):
 
 @bp3.route('/', methods=['GET'])
 def index():
-    """
-    Serves the index.html file from the application root directory.
-    """
-    # current_app.logger.info(f"--- Index Route: Session Language = {session.get('language')} ---")
-    # The '.' refers to the root directory of the application
+    """ Serves the index.html file from the application root directory. """
     return render_template('index.html')
 
 @bp3.route('/robots.txt')
 def robots_txt():
-    """Serves the robots.txt file from the static directory."""
-    # Use the application's configured static folder, which is robust
-    # and works in both local and deployed environments.
+    """ Serves the robots.txt file from the static directory. """
     static_folder = current_app.static_folder
     return send_from_directory(static_folder, 'robots.txt', mimetype='text/plain')
 
 @bp3.route('/upload', methods=['POST'])
 def handle_file_upload():
-    """
-    This route is called when the user clicks 'Submit' on the form
-    from index.html.
-    """
-    upload_id = str(uuid.uuid4())
+    """ Send user`s file to pipeline by PubSub."""
+
+    file = request.files['file']
 
     if 'file' not in request.files:
         flash(_('No file part in the request.'), 'error')
         return redirect(url_for('frontend.index'))
+    logger.info(f"Received file object")
 
-    file = request.files['file']
-    logger.info(f"Received file object: {file}")
-
-    user_email = request.form.get('email_address')  # Example of getting other form data
+    user_email = request.form.get('email_address')
 
     if not user_email:
         flash(_('Email address is required.'), 'error')
@@ -83,6 +73,9 @@ def handle_file_upload():
 
         # Trigger Backend Pipeline via Pub/Sub
         # Publish the file content and user email for the workers to process
+
+        upload_id = str(uuid.uuid4())
+
         message_data = {
             "file_data": base64.b64encode(file_data).decode('utf-8'),
             "user_email": user_email,
@@ -92,7 +85,7 @@ def handle_file_upload():
         }
 
         # Publish the message
-        publish_message(GCP_TOPIC_NAME, message_data)
+        publish_to_pubsub(GCP_TOPIC_NAME, message_data)
 
         # Clear the upload_id after a successful publication
         session.pop('upload_id', None)

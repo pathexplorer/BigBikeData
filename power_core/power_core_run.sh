@@ -27,11 +27,23 @@ set -a
 source "$ENV_FILE"
 set +a
 
+# --- Branch-specific configuration ---
+BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+SERVICE_SUFFIX=""
+if [ "$BRANCH_NAME" != "master" ]; then
+    SERVICE_SUFFIX="-$BRANCH_NAME" # e.g., -testing
+fi
+
+TARGET_SERVICE_NAME="${CLOUD_RUN_SERVICE}${SERVICE_SUFFIX}"
+IMAGE_TAG=$BRANCH_NAME
+
+echo "Branch: $BRANCH_NAME"
+echo "Target Service: $TARGET_SERVICE_NAME"
+echo "Image Tag: $IMAGE_TAG"
+# ------------------------------------
 
 echo "Dynamically building substitutions for Cloud Build..."
 # --- Dynamic Substitution String Creation ---
-# Read the .env file line by line, ignoring comments and empty lines,
-# and build the substitution string automatically.
 SUBS=""
 while IFS= read -r line || [[ -n "$line" ]]; do
     # Trim leading/trailing whitespace
@@ -51,11 +63,9 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     SUBS+="_${key}=${value},"
 done < "$ENV_FILE"
 
-# Add special substitutions that may not be in the env file
-SUBS+="_YAML_IMAGE=${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY}/${CLOUD_RUN_SERVICE}:${BACKEND_TAG}"
-#SUBS+=",_S_ACCOUNT_RUN=${SA_NAME_RUN}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
-#SUBS+=",_S_ACCOUNT_STRAVA=${SA_NAME_STRAVA}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
-#SUBS+=",_S_ACCOUNT_DROPBOX=${SA_NAME_DROPBOX}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+# Add/overwrite special substitutions for the build
+SUBS+="_CLOUD_RUN_SERVICE=${TARGET_SERVICE_NAME},"
+SUBS+="_YAML_IMAGE=${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY}/${TARGET_SERVICE_NAME}:${IMAGE_TAG}"
 
 echo "Substitutions prepared."
 # THIS 10 LINES IS ADDON FOR VARIANT 2
@@ -92,8 +102,8 @@ gcloud builds submit . \
     --ignore-file=.dockerignore \
     --substitutions="${SUBS}" \
     --service-account="$DEPLOYER_SA_RESOURCE_URL" \
-    --gcs-source-staging-dir="$DEPLOYER_BUCKET_URL" \
-    --gcs-log-dir="$DEPLOYER_BUCKET_LOG"
+    --gcs-source-staging-dir="$DEPLOYER_BUCKET_URL"
+#    --gcs-log-dir="$DEPLOYER_BUCKET_LOG"
 
 echo "✅ Cloud Build submitted successfully."
 BUILD_EXIT_CODE=$?

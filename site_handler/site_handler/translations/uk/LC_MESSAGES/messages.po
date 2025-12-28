@@ -68,8 +68,8 @@ msgid "or drag and drop"
 msgstr "або перетягніть у це вікно"
 
 #: site_handler/templates/index.html:96 site_handler/templates/index.html:97
-msgid "FIT file format only. Max 30MB."
-msgstr "Тільки формат файлу FIT. Макс. 30 МБ."
+msgid "FIT file format only. Max 10MB."
+msgstr "Тільки формат файлу FIT. Макс. 10 МБ."
 
 #: site_handler/templates/index.html:109
 msgid "Start Cleaning Process"

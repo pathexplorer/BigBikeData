@@ -19,6 +19,9 @@ steps:
       - '--image=${_YAML_IMAGE}'
       - '--region=${_REGION}'
       - '--platform=managed'
+      - '--network=default'
+      - '--subnet=default'
+      - '--vpc-egress=all-traffic'
       - '--service-account=${_S_ACCOUNT_RUN}'
       # Use a multiline block for --set-env-vars for readability.
       # The '|' tells YAML to treat the indented block as a single string.
@@ -41,5 +44,5 @@ images:
 
 # This option allows unused variables from the .env file to be ignored.
 options:
-  logging: GCS_ONLY
+  logging: 'CLOUD_LOGGING_ONLY'
   substitution_option: 'ALLOW_LOOSE'
