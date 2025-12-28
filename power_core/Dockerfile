@@ -6,9 +6,12 @@ ENV PYTHONUNBUFFERED=True \
     APP_HOME=/app
 WORKDIR $APP_HOME
 
-# Install build-time dependencies
+# Install build-time dependencies, including libpq-dev for psycopg compilation
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends git build-essential && \
+    apt-get install -y --no-install-recommends \
+    git \
+    build-essential  \
+    libpq && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy local package first
@@ -34,9 +37,11 @@ ENV PYTHONUNBUFFERED=True \
     JAVA_HOME="/usr/lib/jvm/java-21-openjdk-amd64"
 WORKDIR $APP_HOME
 
-# Install Java (runtime dependency)
+# Install RUNTIME dependencies: Java and the PostgreSQL client library (libpq5)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends openjdk-21-jre-headless && \
+    apt-get install -y --no-install-recommends \
+      openjdk-21-jre-headless \
+      libpq5 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

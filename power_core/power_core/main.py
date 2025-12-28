@@ -1,6 +1,6 @@
 import sys
 import os
-from gcp_actions.common_utils.init_config import load_and_inject_config
+from gcp_actions.common_utils.init_config import InjectConfig
 from gcp_actions.common_utils.handle_logs import run_handle_logs
 import logging
 
@@ -8,9 +8,10 @@ run_handle_logs()
 logger = logging.getLogger(__name__)
 
 try:
-    list_of_secret_env_vars = ["APP_JSON_KEYS", "SEC_DROPBOX"]
-    list_of_sa_env_vars = [None, "S_ACCOUNT_DROPBOX"]
-    load_and_inject_config(list_of_secret_env_vars, list_of_sa_env_vars)
+    list_of_secret_env_vars = ["APP_JSON_KEYS"]
+    list_of_sa_env_vars = [None]
+    ic = InjectConfig(list_of_secret_env_vars, list_of_sa_env_vars)
+    ic.load_and_inject_config()
     logger.debug("Configuration loaded successfully.")
 except Exception as e:
     logger.critical(f"FATAL ERROR: Could not load configuration. {e}")
@@ -25,9 +26,10 @@ def create_app():
     """
 
     from flask import Flask
-    from power_core.routes.upload_back import bp1 as upload_bp
+    from power_core.routes.transfer import bp1 as upload_bp
     from power_core.routes.transfer import bp2 as transfer_bp
-    from power_core.routes.public_user import bp3 as transfer_pubic
+    from power_core.routes.transfer import bp3 as transfer_pubic
+    from power_core.routes.transfer import bp_private as transfer_private
 
     app = Flask(__name__)
 
@@ -35,6 +37,7 @@ def create_app():
     app.register_blueprint(upload_bp)
     app.register_blueprint(transfer_bp)
     app.register_blueprint(transfer_pubic)
+    app.register_blueprint(transfer_private)
 
     return app
 

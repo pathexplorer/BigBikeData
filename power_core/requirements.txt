@@ -10,6 +10,7 @@ git+https://github.com/pathexplorer/fit2gpx.git@first
 gpxpy
 numpy
 pandas
+psycopg
 lxml
 fitdecode
 python-dotenv

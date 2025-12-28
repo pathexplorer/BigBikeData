@@ -7,6 +7,26 @@ assign_roles_to_run_service_acc() {
   shift 4
   local ROLES=("$@")
 
+
+# --- Configuration & Validation  ---
+ROLES_SA_RUN=(
+ roles/storage.objectAdmin
+ roles/pubsub.serviceAgent
+ roles/pubsub.publisher
+ roles/secretmanager.admin
+ roles/datastore.user
+ roles/logging.logWriter # Added permission to write logs
+)
+ROLES_USER_ACCOUNT=(
+ roles/artifactregistry.writer
+)
+ROLES_COMPUTE_ACCOUNT=(
+ roles/run.admin
+)
+
+
+
+
   echo "   - Checking/Binding $MEMBER to $LEVEL_NAME with $ROLE"
 
   # Unpacking array for possibility use function as argument in other function

@@ -9,8 +9,8 @@ from power_core.project_env import config
 from urllib.parse import urlencode
 
 app = Flask(__name__)
-sa_email_dd= config.s_email_dropbox
-project_idd= config.GCP_PROJECT_ID
+sa_email_dd = config.s_email_dropbox
+project_idd = config.GCP_PROJECT_ID
 
 sm = SecretManagerClient(project_idd,sa_email_dd)
 secrets_db_dict = sm.get_secret_json(config.SEC_DROPBOX)

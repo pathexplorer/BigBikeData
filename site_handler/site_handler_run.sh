@@ -28,7 +28,20 @@ set -a
 source "$ENV_FILE"
 set +a
 
+# --- Branch-specific configuration ---
+BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+SERVICE_SUFFIX=""
+if [ "$BRANCH_NAME" != "master" ]; then
+    SERVICE_SUFFIX="-$BRANCH_NAME" # e.g., -testing
+fi
 
+TARGET_SERVICE_NAME="${CLOUD_RUN_SERVICE_PUB}${SERVICE_SUFFIX}"
+IMAGE_TAG=$BRANCH_NAME
+
+echo "Branch: $BRANCH_NAME"
+echo "Target Service: $TARGET_SERVICE_NAME"
+echo "Image Tag: $IMAGE_TAG"
+# ------------------------------------
 
 echo "Dynamically building substitutions for Cloud Build..."
 # Read the .env file line by line, ignoring comments and empty lines,
@@ -54,11 +67,9 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 done < "$ENV_FILE"
 
 
-# Add special substitutions that may not be in the env file
-SUBS+="_YAML_IMAGE_PUB=${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY}/${CLOUD_RUN_SERVICE_PUB}:${FRONTEND_TAG}"
-#SUBS+=",_S_ACCOUNT_RUN=${SA_NAME_RUN}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
-#SUBS+=",_S_ACCOUNT_STRAVA=${SA_NAME_STRAVA}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
-#SUBS+=",_S_ACCOUNT_DROPBOX=${SA_NAME_DROPBOX}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+# Add/overwrite special substitutions for the build
+SUBS+="_CLOUD_RUN_SERVICE_PUB=${TARGET_SERVICE_NAME},"
+SUBS+="_YAML_IMAGE_PUB=${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY}/${TARGET_SERVICE_NAME}:${IMAGE_TAG},"
 
 # --- FIX: REMOVE TRAILING COMMA ---
 # This is the standard Bash way to strip the last character from a variable

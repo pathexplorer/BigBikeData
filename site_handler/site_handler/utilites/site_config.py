@@ -8,7 +8,6 @@ try:
     APP_JSON_KEYS = os.environ.get("APP_JSON_KEYS")
     # -------------- Initialization secret and firestore clients --------------
     GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
-    # remove GCS_PUB_INPUT_BUCKET=os.environ.get("GCS_PUB_INPUT_BUCKET")
     GCS_PUB_OUTPUT_BUCKET=os.environ.get("GCS_PUB_OUTPUT_BUCKET")
     ALLOWED_DOMAINS = os.environ.get("ALLOWED_DOMAINS")
     GCP_TOPIC_NAME = os.environ.get("GCP_TOPIC_NAME")

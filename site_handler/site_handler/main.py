@@ -1,6 +1,6 @@
 import sys
 import os
-from gcp_actions.common_utils.init_config import load_and_inject_config
+from gcp_actions.common_utils.init_config import InjectConfig
 from gcp_actions.common_utils.handle_logs import run_handle_logs
 import logging
 
@@ -10,7 +10,8 @@ run_handle_logs()
 
 # --- 1. Application Startup Logic ---
 try:
-    load_and_inject_config()
+    ic = InjectConfig()
+    ic.load_and_inject_config()
     logger.debug("Configuration loaded successfully")
 
 except Exception as e:

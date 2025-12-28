@@ -1,4 +1,3 @@
-
 from power_core.project_env.config import SMTP_USER, SMTP_PASSWORD, SMTP_SERVER, SMTP_PORT, SMTP_SENDER, BREVO_API_KEY, SENDER_NAME, SENDER_EMAIL, EMAIL_MODE
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -35,7 +34,7 @@ def _send_email_smtp(recipient_email: str, subject: str, html_body: str):
         
         smtp_port = int(smtp_port_str)
 
-        # --- NEW DIAGNOSTIC LOGGING ---
+        # --- DIAGNOSTIC LOGGING ---
         logger.debug(f"About to connect to...")
         logger.debug(f"Host: '{smtp_server_host}'")
         logger.debug(f"Port: {smtp_port}")
@@ -99,6 +98,7 @@ def _send_email_brevo(recipient_email: str, subject: str, html_body: str):
     except Exception as e:
         logger.error(f"❌ An unexpected error occurred with Brevo sender: {e}")
         raise
+
 
 def send_email(recipient_email: str, subject: str, html_body: str):
     """

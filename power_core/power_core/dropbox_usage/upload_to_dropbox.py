@@ -3,7 +3,7 @@ import io
 import os
 from gcp_actions.client import get_bucket
 from dropbox.files import FileMetadata #add types, instead dropbox.files.FileMetadata, use only Fi.
-from power_core.dropbox_usage.get_from_dropbox import auth_dropbox
+from power_core.dropbox_usage.get_from_dropbox import DropboxAuth
 from power_core.project_env import config
 from flask import jsonify
 
@@ -21,7 +21,8 @@ def upload_custom_files_session(gcs_folder: str):
     blobs = list(bucket.list_blobs(prefix=gcs_folder))
     if not blobs:
         return jsonify({"error": "No files found in folder"}), 404
-    dbx = auth_dropbox()
+    da = DropboxAuth()
+    dbx = da.auth_dropbox()
     uploaded = []
 
     for blob in blobs:

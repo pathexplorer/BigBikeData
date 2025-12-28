@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from typing import Set
 from datetime import datetime
 
-dotenv_path = os.path.join(os.path.dirname(__file__), "/home/stas/Dropbox/projects/BigBikeData/keys.env")
+dotenv_path = os.path.join(os.path.dirname(__file__), "/home/stas/mega/projects/BigBikeData/keys.env")
 load_dotenv(dotenv_path=dotenv_path, override=False)
 
 
@@ -79,6 +79,6 @@ def inspect_loaded_vars_table(env_file_path: str):
 
 if __name__ == "__main__":
      # absolute path to .env file
-    ENV_FILE = os.path.expanduser('/home/stas/Dropbox/projects/BigBikeData/keys.env')
+    ENV_FILE = os.path.expanduser('/home/stas/mega/projects/BigBikeData/keys.env')
 
     inspect_loaded_vars_table(ENV_FILE)

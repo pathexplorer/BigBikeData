@@ -6,9 +6,10 @@ import os
 import re
 from power_core.project_env.config import LOCAL_TMP
 from gcp_actions.client import get_bucket
-from gcp_actions.blob_manipulation import upload_to_gcp_bucket, delete_blob
+from gcp_actions.blob_manipulation import delete_blob, StorageManipulations
 from google.cloud import firestore
 from gcp_actions.firestore_box.json_manipulations import FirestoreMagic
+from gcp_actions.common_utils.timer import run_timer
 
 import logging
 
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 bucket_name = "GCS_BUCKET_NAME"
 
-
+@run_timer
 def extract_first_time_tag(file_path: str) -> str | None:
     """
     Get a timestamp of activity from a GPX file
@@ -41,6 +42,7 @@ def extract_first_time_tag(file_path: str) -> str | None:
         logger.error(f"An unexpected error occurred in extract_first_time_tag for '{file_path}': {e}")
         raise
 
+@run_timer
 def strip_source_content(file_path: str) -> None:
     """
     Strips the GPX file header and footer in-place to prepare it for concatenation.
@@ -76,7 +78,7 @@ def strip_source_content(file_path: str) -> None:
         logger.error(f"An unexpected error occurred in strip_source_content for '{file_path}': {e}")
         raise
 
-
+@run_timer
 def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = None) -> None:
     """
     gpx_gcs_path: if enable functional for delete a GPX file after appending to heatmap and GIS analyze (coming soon)
@@ -150,7 +152,12 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
     # Loaded fragment to bucket
     fragment_blob_name = f"heatmap/fragments/{os.path.basename(local_gpx)}"
     # At this time local_gpx is stripped
-    upload_to_gcp_bucket(bucket_name, fragment_blob_name, local_gpx, "filename")
+    up_frag = StorageManipulations(
+        bucket_name,
+        fragment_blob_name,
+        local_gpx,
+    )
+    up_frag.upload_to_gcp_bucket("filename")
 
     # Union
     fragment_blob = bucket.blob(fragment_blob_name)
@@ -167,7 +174,12 @@ def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = 
             f.write("""<?xml version="1.0" encoding="UTF-8"?>
         <gpx version="1.1" creator="SPipeline">
          """)
-        upload_to_gcp_bucket(bucket_name, main_blob_name, main_blob_path, "filename")
+        up_blob = StorageManipulations(
+            bucket_name,
+            main_blob_name,
+            main_blob_path
+        )
+        up_blob.upload_to_gcp_bucket("filename")
         logger.debug(f"Heatmap created for '{gpx_name.upper()}' bike.")
 
     main_blob.compose([main_blob, fragment_blob])
