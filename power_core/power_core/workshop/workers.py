@@ -193,25 +193,34 @@ class ActivityProcessingPipeline:
         else:
             logger.warning(f"STRAVA UPLOAD SKIPPED: Mode is '{current_mode}'.")
 
-    def stage_06_fit_to_gpx(self):
-        """ Converts the fixed FIT to GPX and uploads it to GCS."""
-        CONVERTER.fit_to_gpx(
-            self.local_fixed_fit_path,
-            self.local_gpx_path
-        )
+    def stage_06ver2_create_parce_csv(self):
+        """
+        :return:
+        """
+    def stage_07ver2_load_in_postgresql(self):
+        """
 
-        # Storage Audit: for appending by compose method
-        up_gpx = StorageManipulations(
-            self.bucket_name,
-            self.gcs_gpx_path,
-            self.local_gpx_path,
-        )
-        up_gpx.upload_to_gcp_bucket("filename")
+        :return:
+        """
+    # def stage_06_fit_to_gpx(self):
+    #     """ Converts the fixed FIT to GPX and uploads it to GCS."""
+    #     CONVERTER.fit_to_gpx(
+    #         self.local_fixed_fit_path,
+    #         self.local_gpx_path
+    #     )
+    #
+    #     # Storage Audit: for appending by compose method
+    #     up_gpx = StorageManipulations(
+    #         self.bucket_name,
+    #         self.gcs_gpx_path,
+    #         self.local_gpx_path,
+    #     )
+    #     up_gpx.upload_to_gcp_bucket("filename")
 
-    def stage_07_heatmap(self):
-        """ Updates the heatmap using the bike model identified in stage 3."""
-        append_gpx_via_compose(self.local_gpx_path, self.bike_model, self.gcs_gpx_path)
-        logger.debug(f"Heatmap updated for bike model: {self.bike_model}")
+    # def stage_07_heatmap(self):
+    #     """ Updates the heatmap using the bike model identified in stage 3."""
+    #     append_gpx_via_compose(self.local_gpx_path, self.bike_model, self.gcs_gpx_path)
+    #     logger.debug(f"Heatmap updated for bike model: {self.bike_model}")
 
     def run_full_pipeline(self):
         """ Executes all stages of the private activity processing pipeline."""
@@ -227,10 +236,10 @@ class ActivityProcessingPipeline:
             self.stage_04_fixed_csv_to_fit()
         with time_stage("5 Upload to Strava", all_stage_times):
             self.stage_05_upload_to_strava()
-        with time_stage("6 FIT to GPX", all_stage_times):
-            self.stage_06_fit_to_gpx()
-        with time_stage("7 Append to Heatmap", all_stage_times):
-            self.stage_07_heatmap()
+        # with time_stage("6 FIT to GPX", all_stage_times):
+        #     self.stage_06_fit_to_gpx()
+        # with time_stage("7 Append to Heatmap", all_stage_times):
+        #     self.stage_07_heatmap()
         log_duration_table(all_stage_times, "Private")
 
     def run_repair_flow(self):
