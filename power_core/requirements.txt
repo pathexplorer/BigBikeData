@@ -1,0 +1,16 @@
+flask
+gunicorn
+dropbox
+google-cloud-logging
+google-auth
+google-cloud-firestore
+git+https://github.com/pathexplorer/fit2gpx.git@first
+-e /home/stas/projects/main/gcp_actions
+gpxpy
+numpy
+pandas
+psycopg
+lxml
+fitdecode
+python-dotenv
+sib-api-v3-sdk

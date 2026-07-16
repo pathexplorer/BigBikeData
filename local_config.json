@@ -1,0 +1,5 @@
+{
+  "DROPBOX_TOPIC_NAME": "dropbox-handler-testing",
+  "LOGGING_LEVEL": "DEBUG",
+  "PG_HOST": "localhost"
+}

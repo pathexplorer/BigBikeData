@@ -1,0 +1,26 @@
+import os
+import logging
+logger = logging.getLogger(__name__)
+
+try:
+    # -------------- Loaded environment variables from YAML, access immediately --------------
+    GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
+    APP_JSON_KEYS = os.environ.get("APP_JSON_KEYS")
+    # -------------- Initialization secret and firestore clients --------------
+    GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
+    GCS_PUB_OUTPUT_BUCKET=os.environ.get("GCS_PUB_OUTPUT_BUCKET")
+    ALLOWED_DOMAINS = os.environ.get("ALLOWED_DOMAINS")
+    GCP_TOPIC_NAME = os.environ.get("GCP_TOPIC_NAME")
+    CLOUD_RUN_SERVICE = os.environ.get("CLOUD_RUN_SERVICE")
+
+
+    S_ACCOUNT_RUN = os.environ.get("s_email_run")
+    FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY")
+
+
+except KeyError as e:
+    logger.critical(f"FATAL: Missing required environment variable: {e}")
+    raise EnvironmentError(f"Configuration missing from environment: {e}")
+
+if __name__ == "__main__":
+    print("")
