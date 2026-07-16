@@ -1,0 +1,159 @@
+# Ukrainian translations for PROJECT.
+# Copyright (C) 2025 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2025-11-21 21:19+0200\n"
+"PO-Revision-Date: 2025-11-21 21:21+0200\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: uk\n"
+"Language-Team: uk <LL@li.org>\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: site_handler/route_site/public_access.py:51
+msgid "No file part in the request."
+msgstr "У запиті немає файлової частини."
+
+#: site_handler/route_site/public_access.py:61
+msgid "Email address is required."
+msgstr "Потрібна адреса електронної пошти."
+
+#: site_handler/route_site/public_access.py:65
+msgid "No file was selected."
+msgstr "Файл не вибрано."
+
+#: site_handler/route_site/public_access.py:69
+msgid "Invalid file type. Only .fit files are accepted."
+msgstr "Недійсний тип файлу. Приймаються лише файли .fit."
+
+#: site_handler/route_site/public_access.py:107
+msgid "An unexpected error occurred during upload or processing."
+msgstr "Під час завантаження або обробки сталося щось дивне."
+
+#: site_handler/templates/index.html:37
+msgid "Clean .fit files from teleports"
+msgstr "Очистити файл .fit від телепортів"
+
+#: site_handler/templates/index.html:47
+msgid "Error:"
+msgstr "Помилка:"
+
+#: site_handler/templates/index.html:61
+msgid "Input your email (for results)"
+msgstr "Введіть свою електронну адресу (для результатів)"
+
+#: site_handler/templates/index.html:69
+msgid "your.name@example.com"
+msgstr "your.name@example.com"
+
+#: site_handler/templates/index.html:78
+msgid "Upload your .fit file"
+msgstr "Завантажте свій файл .fit"
+
+#: site_handler/templates/index.html:90 site_handler/templates/index.html:127
+msgid "Select a file"
+msgstr "Виберіть файл"
+
+#: site_handler/templates/index.html:93 site_handler/templates/index.html:128
+msgid "or drag and drop"
+msgstr "або перетягніть у це вікно"
+
+#: site_handler/templates/index.html:96 site_handler/templates/index.html:97
+msgid "FIT file format only. Max 10MB."
+msgstr "Тільки формат файлу FIT. Макс. 10 МБ."
+
+#: site_handler/templates/index.html:109
+msgid "Start Cleaning Process"
+msgstr "Розпочати процес очищення"
+
+#: site_handler/templates/index.html:126
+msgid "File ready for cleaning!"
+msgstr "Файл готовий до очищення!"
+
+#: site_handler/templates/index.html:129
+msgid "Processing..."
+msgstr "Обробка..."
+
+#: site_handler/templates/success.html:29
+msgid "Thank you! Your file is being processed. We will email the result."
+msgstr "Дякуємо! Ваш файл обробляється. Ми надішлемо вам результат електронною поштою."
+
+#: site_handler/templates/success.html:32
+msgid "Upload another file"
+msgstr "Завантажити ще файл"
+
+#: site_handler/site_handler/templates/index.html:151
+msgid "Support:"
+msgstr "Підтримка:"
+
+#: site_handler/site_handler/templates/index.html:151
+msgid "Cherkasy, Ukraine"
+msgstr "Черкаси, Україна"
+
+#: site_handler/site_handler/templates/404_expired.html:37
+msgid "Oops, the link is expired and not valid anymore. Please upload your file again."
+msgstr "Отакої, посилання вже не активне. Будь-ласка, завантажте свій файл знову"
+
+#: site_handler/site_handler/templates/500.html:6
+msgid "Internal Server Error"
+msgstr "Внутрішня помилка на сервері"
+
+#: site_handler/site_handler/templates/500.html:21
+msgid "An Unexpected Error Occurred"
+msgstr "Сталось щось неочікуване"
+
+#: site_handler/site_handler/templates/500.html:25
+msgid "We have been notified of the issue and are working to fix it. Please try again later."
+msgstr "Ми будемо проінформовані про цю помилку і займемось її виправленням. Будь-ласка, спобуйте пізніше"
+
+#: site_handler/site_handler/templates/500.html:31
+msgid "Return to Homepage"
+msgstr "Повернутись на головну сторінку"
+
+#: site_handler/site_handler/static/404.html:37
+msgid "404 - Page Not Found"
+msgstr "404 - Сторінка не знайдена"
+
+# site_handler/site_handler/templates/index.html:75
+msgid "How it works"
+msgstr "Як працює сервіс"
+
+# site_handler/site_handler/templates/index.html:77
+msgid "The service cleans the FIT file by removing specific teleportation errors caused by GPS."
+msgstr "Сервіс очищає FIT файл, видаляючи специфічні телепортації, спричинені помилками GPS."
+
+# site_handler/site_handler/templates/index.html:78
+msgid "All other data (heart rate, cadence, power, and speed) from those corrected seconds is preserved."
+msgstr "Усі інші дані (пульс, каденс, потужність та швидкість) із цих виправлених секунд зберігаються."
+
+# site_handler/site_handler/templates/index.html:79
+msgid "To ensure accurate distance and speed, you must use a speed sensor with your bike computer."
+msgstr "Щоб забезпечити точну дистанцію та швидкість, необхідно використовувати на велокомп'ютері датчик швидкості."
+
+# site_handler/site_handler/templates/index.html:80
+msgid "It is recommended to pause the bike computer manually during stops (not with auto-pause). This will further improve the quality of the cleaning."
+msgstr "Рекомендується ставити велокомпютер на паузу при зупинках примусово (не автопаузою). Це ще більше покращить якість очистки."
+
+# site_handler/site_handler/templates/index.html:81
+msgid "Only very large teleportations will be corrected (for example, if you suddenly jump to Lima, Peru)."
+msgstr "Виправляються лише дуже великі телепортації (наприклад, якщо ви раптово перемістилися до Ліми, Перу)"
+
+# site_handler/site_handler/templates/index.html:82
+msgid "A download link for the cleaned file will be sent to the user's email."
+msgstr "Посилання для завантаження очищеного файлу буде надіслано на електронну пошту користувача."
+
+# site_handler/site_handler/templates/index.html:83
+msgid "All data is deleted from the server after the link expires."
+msgstr "Усі дані видаляються з сервера після закінчення терміну дії посилання."
+
+msgid "Smart cleaning FIT sports activity files with speed sensors from incorrect GPS points"
+msgstr "Спеціальне очищення файлів спортивної активності FIT з датчиком швидкості від некоректних точок GPS"

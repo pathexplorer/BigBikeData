@@ -1,0 +1,105 @@
+# site_handler — Public-Facing Upload Portal
+
+Flask web application that lets users upload .FIT cycling activity files for processing. Sits behind Firebase Hosting with domain-based access control. Deployed on Google Cloud Run.
+
+## How It Works
+
+```
+User ──► Firebase Hosting ──► site_handler (Cloud Run) ──► Pub/Sub ──► power_core (Backend)
+            │                        │
+            │                        └──► Short-lived signed URL for download
+            │
+            └── Security redirects for common attack patterns
+```
+
+1. **User visits** the website (served via Firebase Hosting)
+2. **Uploads** a .FIT file and provides their email
+3. **Frontend publishes** the file content to a Pub/Sub topic
+4. **Backend** (`power_core`) processes the file asynchronously
+5. **User receives** an email with a download link to the cleaned file
+
+## Features
+
+- **File Upload** — drag-and-drop / form-based upload of .FIT files (`.fit` only)
+- **Email Notifications** — users get notified when processing is complete
+- **Short-lived Download Links** — signed GCS URLs with 1-minute TTL, expiration tracking in Firestore
+- **Internationalization** — English (`en`) and Ukrainian (`uk`) via Flask-Babel
+- **Security Middleware** — restricts access to an allowlist of domains, blocks direct Cloud Run URL access and bots
+- **Firebase Hosting** — extensive `.json` configuration with rewrites and security redirects (blocks `/wp-*`, `/admin`, `.env`, and 30+ common attack patterns)
+- **Tailwind CSS** — styling via Tailwind CSS v4
+
+## Project Structure
+
+| Path | Purpose |
+|------|---------|
+| `site_handler/main.py` | Flask app factory, blueprint registration, proxy middleware |
+| `site_handler/route_site/public_access.py` | Main routes: `/`, `/upload`, `/download/<id>`, `/success` |
+| `site_handler/route_site/defender.py` | Security middleware — domain allowlist enforcement |
+| `site_handler/route_site/language.py` | Language switcher routes (`/language/<lang>`) |
+| `site_handler/route_site/app_config_module.py` | App secret key management |
+| `site_handler/utilites/babel_config.py` | Flask-Babel initialization and locale configuration |
+| `site_handler/utilites/site_config.py` | Environment variable loading for the frontend |
+| `site_handler/templates/` | Jinja2 templates (`index.html`, `success.html`, `500.html`, `404_expired.html`) |
+| `site_handler/static/` | Static assets (CSS, JS, favicon, robots.txt, 404 fallback) |
+
+## Configuration
+
+| Variable | Description |
+|----------|-------------|
+| `GCP_TOPIC_NAME` | Pub/Sub topic to publish uploads to |
+| `ALLOWED_DOMAINS` | Comma-separated list of allowed hostnames |
+| `FLASK_SECRET_KEY` | Flask session secret (loaded from Secret Manager) |
+| `S_ACCOUNT_RUN` | Service account for signed URL generation |
+
+## Local Development
+
+```bash
+# Set up virtual environment
+cd site_handler
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Install and build Tailwind CSS
+npm install
+npx @tailwindcss/cli -i ./site_handler/static/css/input.css -o ./site_handler/static/css/output.css
+
+# Run (listens on port 8080 by default)
+python site_handler/main.py
+```
+
+## Internationalization
+
+Translations use Flask-Babel with compiled `.mo` files in `site_handler/translations/`.
+
+```bash
+# Extract strings
+pybabel extract -F babel.cfg -o messages.pot .
+
+# Initialize a new language
+pybabel init -i messages.pot -d translations -l uk
+
+# Compile after translation
+pybabel compile -d translations
+```
+
+## Deployment
+
+```bash
+# Cloud Build deploy
+gcloud builds submit --config cloudbuild.yaml
+
+# Or deploy Firebase Hosting config
+firebase deploy --only hosting
+```
+
+## Routes
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/` | GET | Main upload page (`index.html`) |
+| `/upload` | POST | Handle file upload and publish to Pub/Sub |
+| `/download/<uuid>` | GET | Generate short-lived signed URL for download |
+| `/success` | GET | Upload success confirmation page |
+| `/language/<lang>` | GET | Switch language (`en` or `uk`) |
+| `/robots.txt` | GET | Static robots.txt |

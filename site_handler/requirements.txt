@@ -1,0 +1,7 @@
+flask
+flask-babel
+werkzeug
+gunicorn
+keyring
+google-cloud-logging
+-e /home/stas/projects/main/gcp_actions[processing-worker]
