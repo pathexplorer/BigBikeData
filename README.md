@@ -11,9 +11,9 @@ BigBikeData/
 
 ## Architecture Overview
 
-```
-![sheme](power_core/docs/Schem7he.png)
+![sheme](./power_core/docs/Schem7he.png)
 
+```
 ┌──────────────────────────────────────────────────┐
                     │                 Firebase Hosting                 │
                     │         (security redirects + rewrites)          │
