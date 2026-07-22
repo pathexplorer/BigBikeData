@@ -13,31 +13,6 @@ BigBikeData/
 
 ![sheme](./power_core/docs/Schem7he.png)
 
-```
-                    ┌──────────────────────────────────────────────────┐
-                    │                 Firebase Hosting                 │
-                    │         (security redirects + rewrites)          │
-                    └──────────────────────┬───────────────────────────┘
-                                           │
-                    ┌──────────────────────▼───────────────────────────┐
-                    │          site_handler (Frontend, .fit upload)    │
-                    │          Flask + Babel + Tailwind CSS            │
-                    └──────────────────────┬───────────────────────────┘
-                                           │ Google Pub/Sub
-                                           ▼
-                    ┌──────────────────────────────────────────────────┐
-                    │          power_core (Backend Pipeline)           │
-                    │  Dropbox sync → FIT decode → GPS clean →         │
-                    │  Strava upload → Heatmap → PostgreSQL (PostGIS)  │
-                    └──────────────┬──────────────┬────────────────────┘
-                                   │              │
-                                   ▼              ▼
-                       ┌──────────────┐   ┌──────────────┐
-                       │  Dropbox     │   │   Strava     │
-                       │  (activities)│   │   (upload)   │
-                       └──────────────┘   └──────────────┘
-```
-
 ## Services
 
 | Service | Directory | Description | Access |
