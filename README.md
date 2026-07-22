@@ -14,14 +14,14 @@ BigBikeData/
 ![sheme](./power_core/docs/Schem7he.png)
 
 ```
-┌──────────────────────────────────────────────────┐
+                    ┌──────────────────────────────────────────────────┐
                     │                 Firebase Hosting                 │
                     │         (security redirects + rewrites)          │
                     └──────────────────────┬───────────────────────────┘
                                            │
                     ┌──────────────────────▼───────────────────────────┐
-                    │          site_handler (Frontend, .fit upload)     │
-                    │          Flask + Babel + Tailwind CSS             │
+                    │          site_handler (Frontend, .fit upload)    │
+                    │          Flask + Babel + Tailwind CSS            │
                     └──────────────────────┬───────────────────────────┘
                                            │ Google Pub/Sub
                                            ▼
@@ -29,7 +29,7 @@ BigBikeData/
                     │          power_core (Backend Pipeline)           │
                     │  Dropbox sync → FIT decode → GPS clean →         │
                     │  Strava upload → Heatmap → PostgreSQL (PostGIS)  │
-                    └──────────────┬──────────────┬───────────────────┘
+                    └──────────────┬──────────────┬────────────────────┘
                                    │              │
                                    ▼              ▼
                        ┌──────────────┐   ┌──────────────┐
@@ -42,8 +42,8 @@ BigBikeData/
 
 | Service | Directory | Description | Access |
 |---------|-----------|-------------|--------|
-| **power_core** | `power_core/` | Internal backend — processes .FIT files from Dropbox and from user uploads via Pub/Sub. Cleans GPS data, uploads to Strava, builds heatmaps, stores in PostgreSQL. | Internal (private Cloud Run) |
-| **site_handler** | `site_handler/` | Public-facing web app. Users upload .FIT files, get cleaned files back via email download links. Sits behind Firebase Hosting with domain allowlist. | Public (Firebase Hosting → Cloud Run) |
+| **[power_core (readme)](https://github.com/pathexplorer/BigBikeData/blob/master/power_core/README.md)** | `power_core/` | Internal backend — processes .FIT files from Dropbox and from user uploads via Pub/Sub. Cleans GPS data, uploads to Strava, builds heatmaps, stores in PostgreSQL. | Internal (private Cloud Run) |
+| **[site_handler (readme)](https://github.com/pathexplorer/BigBikeData/tree/master/site_handler)** | `site_handler/` | Public-facing web app. Users upload .FIT files, get cleaned files back via email download links. Sits behind Firebase Hosting with domain allowlist. | Public (Firebase Hosting → Cloud Run) |
 
 ## Key Features
 
