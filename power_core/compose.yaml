@@ -1,0 +1,37 @@
+# Podman Compose file for local development emulators.
+#
+# ⚠️  Podman rootless port forwarding (pasta) is unreliable for POST requests.
+#     Use --network host instead. This compose file is a reference; the
+#     working setup uses bare podman commands (see emulator README).
+#
+# Usage (if compose works on your system):
+#   podman-compose -f compose.yaml up -d
+#   podman-compose -f compose.yaml down
+#
+# Working alternative:
+#   podman run -d --name bigbikedata-sm-emulator --network host -e PORT=8083 sm-emulator
+
+version: "3.8"
+
+services:
+  secret-manager:
+    build:
+      context: ../../gcp_actions/gcp_actions/emulators/secret_manager
+      dockerfile: Dockerfile
+    container_name: bigbikedata-sm-emulator
+    network_mode: host
+    environment:
+      - PORT=8083
+      - SM_EMULATOR_DATA_FILE=/data/secrets.json
+    volumes:
+      - sm-emulator-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8083/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  sm-emulator-data:

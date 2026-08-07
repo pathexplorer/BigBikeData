@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "power-core"
+version = "0.1.0"
+description = "BigBikeData power_core service"
+requires-python = ">=3.12"
+
+dependencies = [
+    "flask",
+    "gunicorn",
+    "dropbox",
+    "google-cloud-logging",
+    "google-auth",
+    "google-cloud-firestore",
+    "google-cloud-storage",
+    "google-cloud-pubsub",
+    "google-cloud-secret-manager",
+    "google-api-core",
+    "fit2gpx @ git+https://github.com/pathexplorer/fit2gpx.git@first",
+    "gpxpy",
+    "fitdecode",
+    "psycopg[binary]",
+    "lxml",
+    "python-dotenv",
+    "sib-api-v3-sdk",
+    "gcp-actions",
+]
+
+[tool.setuptools.packages.find]
+include = ["power_core*"]
+
+[tool.uv.sources]
+gcp-actions = { path = "../../gcp_actions", editable = true }

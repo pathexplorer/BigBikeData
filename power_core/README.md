@@ -91,19 +91,109 @@ Secrets (Strava tokens, Dropbox tokens, service account keys) are loaded via Goo
 
 ## Local Development
 
+### Prerequisites
+
+- **Python 3.12+**
+- **[uv](https://docs.astral.sh/uv/)** — fast Python package manager (replaces pip/venv)
+- **Podman** (or Docker) — for the Secret Manager emulator
+- **Java JRE 21** (optional) — only needed if running FIT→CSV conversion locally (`FitCSVTool.jar`)
+
+### Quick Start
+
 ```bash
-# Set up virtual environment
+# 1. Create venv and install all dependencies (including gcp_actions editable)
 cd power_core
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+uv venv
+uv pip install -e .
 
-# Configure local environment
-cp ../local_config.json .   # or set env vars manually
+# 2. Start the Secret Manager emulator
+./local_dev.sh start
 
-# Run
-python power_core/main.py
+# 3. Export emulator connection vars
+export SECRET_MANAGER_EMULATOR_HOST=localhost:8083
+export GCP_PROJECT_ID=local-test-project
+
+# 4. Run the app
+.venv/bin/python power_core/main.py
 ```
+
+### Project Dependencies
+
+Dependencies are declared in `pyproject.toml` (not `requirements.txt` — that file is deprecated).
+Key packages:
+
+| Package | Purpose |
+|---------|---------|
+| `flask`, `gunicorn` | Web framework & WSGI server |
+| `gcp-actions` (editable, from `../../gcp_actions`) | Shared GCP helper library |
+| `google-cloud-*` | Firestore, Storage, Pub/Sub, Secret Manager |
+| `dropbox` | Dropbox API (file sync) |
+| `psycopg[binary]` | PostgreSQL connection |
+| `fit2gpx`, `fitdecode` | FIT file parsing |
+| `sib-api-v3-sdk` | Brevo (Sendinblue) email API |
+
+### Architecture Note
+
+`gcp_actions` is a **separate repository** (`/home/stas/projects/main/gcp_actions/`) —
+it is NOT inside the `BigBikeData` folder. The `pyproject.toml` references it via a
+relative editable path (`../../gcp_actions`). This is why `pip install -r requirements.txt`
+alone will NOT work — you must use `uv pip install -e .` which resolves the path dependency.
+
+### Secret Manager Emulator
+
+Instead of a real `keys.env` file on disk (security risk), local development uses a
+lightweight Secret Manager emulator. The emulator is a Flask app containerized with Podman.
+
+```bash
+./local_dev.sh start     # build image, start container, seed secrets (if keys.env found)
+./local_dev.sh stop      # stop and remove container
+./local_dev.sh seed      # re-seed secrets into a running emulator
+./local_dev.sh env       # print export commands for your shell
+```
+
+**How it works:**
+1. `local_dev.sh start` builds and runs the emulator container with `--network host`
+2. If a `keys.env` file is found (checked in multiple locations), secrets are seeded
+   into the emulator via its REST API
+3. The app reads secrets from the emulator at `localhost:8083` — same API as production
+   Secret Manager, just no GCP credentials needed
+
+> **Note:** `keys.env` is a transient file. Once secrets are loaded into the emulator,
+> the file can be deleted. The seed step skips gracefully if no `keys.env` is found.
+
+## Troubleshooting
+
+### `ModuleNotFoundError: No module named 'power_core'`
+
+The `power_core` package must be installed as editable. Run:
+```bash
+uv pip install -e .
+```
+This is needed because `main.py` uses absolute imports like `from power_core.routes.transfer import ...`.
+
+### `ImportError: cannot import name 'storage' from 'google.cloud'`
+
+`gcp_actions` optional dependencies (storage, firestore, pubsub, secretmanager) are
+not installed. Use `uv pip install -e .` — the `pyproject.toml` declares all needed extras.
+
+### `FileNotFoundError: keys.env`
+
+The seed step in `local_dev.sh` looks for `keys.env` in multiple locations. If not found,
+it prints a warning and continues — the emulator may already have secrets from a previous run.
+To seed fresh secrets, create a `keys.env` file and run `./local_dev.sh seed`.
+
+### `Error: context must be a directory: ".../BigBikeData/gcp_actions/..."`
+
+Path resolution bug — `gcp_actions` is a sibling of `BigBikeData`, not a child.
+Check that `local_dev.sh`, `compose.yaml`, and `pyproject.toml` all use
+`../../gcp_actions/...` (two levels up), not `../gcp_actions/...`.
+
+### Podman port forwarding issues with POST requests
+
+Rootless Podman's pasta networking has known issues with POST request forwarding.
+The working setup uses `--network host` (see `local_dev.sh`), which avoids port
+forwarding entirely. The `compose.yaml` is kept as a reference but `local_dev.sh`
+uses bare `podman` commands for reliability.
 
 ## API Endpoints
 

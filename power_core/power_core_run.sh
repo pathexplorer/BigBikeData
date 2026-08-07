@@ -1,5 +1,21 @@
 #!/bin/bash
-# Script to submit the build for the 'power_core' service.
+# =============================================================================
+# power_core_run.sh — Submit Cloud Build for the 'power_core' service.
+#
+# PREREQUISITES:
+#   - keys.env loaded (via venv activate or manually) containing:
+#       GCP_PROJECT_ID, REGION, ARTIFACT_REGISTRY, CLOUD_RUN_SERVICE,
+#       SA_DEPLOYER_EMAIL, GCS_BUILD_BUCKET, and all _-prefixed substitution vars.
+#
+# LOCAL DEVELOPMENT (instead of sourcing keys.env directly):
+#   Use the Secret Manager emulator + local_dev.sh:
+#     1. ./local_dev.sh start       # starts emulator + seeds secrets
+#     2. source <(./local_dev.sh env)  # exports SM emulator env vars
+#     3. python power_core/main.py  # app reads secrets from emulator
+#
+#   This keeps local dev closer to production (Secret Manager) without
+#   requiring real GCP credentials or keys.env for secret values.
+# =============================================================================
 set -e
 
 VENV_PATH="../.venv"
