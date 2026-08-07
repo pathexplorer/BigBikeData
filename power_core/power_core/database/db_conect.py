@@ -31,6 +31,24 @@ logger = logging.getLogger(__name__)
 #         logger.error(f"Error connecting to PostgreSQL database: {connection_uri}")
 
 
+def connect_to_db():
+    """Establishes a connection to the PostgreSQL database."""
+    try:
+        conn = psycopg.connect(
+            host=os.environ.get("PG_HOST", "localhost"),
+            port=os.environ.get("PG_PORT", 5432),
+            dbname=os.environ.get("PG_DATABASE", "postgres"),
+            user=os.environ.get("PG_USER", "postgres"),
+            password=os.environ.get("PG_PASS", "")
+        )
+        conn.autocommit = True
+        logger.info("Database connection established.")
+        return conn
+    except psycopg.OperationalError as e:
+        logger.warning(f"Could not connect to database (local dev without PG?): {e}")
+        return None
+
+
 def load_stream_to_postgres(data_iterator: Iterator[tuple], table_name: str = "heatmap_test"):
     """
     Streams data directly into PostgreSQL using Psycopg 3's efficient copy writer.
