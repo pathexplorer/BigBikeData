@@ -1,3 +1,4 @@
+"""Deprecated local environment checking; superseded by the pre-flight checks in project_env.config."""
 # import os
 # import logging
 # from gcs.google_secret_manager import get_secret

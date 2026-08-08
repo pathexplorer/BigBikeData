@@ -1,3 +1,4 @@
+"""Language selection route: persists the chosen locale in the session and redirects to the index page."""
 from flask import Blueprint, session, redirect, url_for, current_app
 
 bp4 = Blueprint('language', __name__, url_prefix='/language')
@@ -5,7 +6,7 @@ bp4 = Blueprint('language', __name__, url_prefix='/language')
 
 @bp4.route('/<lang>')
 def set_language(lang=None):
-
+    """Store the requested language in the session (if supported) and redirect to the index page."""
     if lang in current_app.config['LANGUAGES']:
         session['language'] = lang
         session.modified = True  # Explicitly mark the session as modified

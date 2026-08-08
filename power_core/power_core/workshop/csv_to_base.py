@@ -17,10 +17,11 @@ SEMICIRCLE_CONVERSION_FACTOR = 180.0 / (2**31)
 
 # --- Domain Exceptions ---
 class DataProcessingError(Exception):
-    pass
+    """Raised when raw CSV values cannot be parsed into a valid GPS record."""
 
 # --- Transformation Logic ---
 def convert_semicircles_to_degrees(semicircles: str | int) -> float:
+    """Convert a FIT semicircle coordinate value into decimal degrees."""
     try:
         val = int(semicircles)
         return val * SEMICIRCLE_CONVERSION_FACTOR
@@ -29,6 +30,7 @@ def convert_semicircles_to_degrees(semicircles: str | int) -> float:
 
 
 def convert_garmin_timestamp(timestamp_val: str | int) -> str:
+    """Convert a Garmin epoch (1989-12-31) seconds value into an ISO-8601 timestamp string."""
     try:
         seconds = int(timestamp_val)
         return (GARMIN_EPOCH + timedelta(seconds=seconds)).isoformat()
@@ -85,6 +87,7 @@ def parse_memory_csv_stream(input_data: str) -> Iterator[tuple[str, float, float
 
 # --- Main Execution ---
 def process_data(raw_java_csv_string: str):
+    """Stream parsed GPS rows from the raw CSV string into PostgreSQL."""
     logger.info("Starting Psycopg 3 Pipeline...")
 
     # Create the generator

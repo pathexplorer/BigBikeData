@@ -1,3 +1,4 @@
+"""Dropbox authentication helpers: inject credentials from Secret Manager and authorize the Dropbox client."""
 import dropbox
 from dropbox.exceptions import AuthError
 from power_core.project_env.config import s_email_dropbox, SEC_DROPBOX, GCP_PROJECT_ID
@@ -16,9 +17,10 @@ logger = logging.getLogger(__name__)
 @run_timer
 
 class DropboxAuth:
+    """Loads Dropbox credentials from Secret Manager and provides the authorized client and signature checks."""
+
     def __init__(self):
-
-
+        """Inject the Dropbox/Strava secrets from Secret Manager into the environment and preflight the DB."""
         sm = SecretManagerClient(GCP_PROJECT_ID, s_email_dropbox)
         current_secret_data = sm.get_secret_json(SEC_DROPBOX)
 
@@ -53,10 +55,7 @@ class DropboxAuth:
 
     @run_timer
     def check_signature(self) -> Response | bool:
-        """
-        Checks the Dropbox signature. Shorter than 0.01 s locally
-        :return: True or Response 403
-        """
+        """Verify the HMAC webhook signature of the current request, returning True or a 403 response."""
         signature = request.headers.get('X-Dropbox-Signature')
         dbx_app_secret = self.DROPBOX_APP_SECRET
         if dbx_app_secret is None:

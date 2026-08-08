@@ -1,3 +1,4 @@
+"""Strava OAuth2 token management: refresh the access token before it expires and persist it back to Secret Manager."""
 import time, os, requests
 from gcp_actions.secret_manager import SecretManagerClient
 from gcp_actions.common_utils.timer import run_timer
@@ -8,11 +9,7 @@ logger = logging.getLogger(__name__)
 
 @run_timer
 def update_strava_token_if_needed():
-    """
-    Get a new access token because it usually already expired (valid only 6 hours)
-    Refresh token is persistent and doesn't need to periodically renew
-    :return:  a new access token
-    """
+    """Return the current Strava access token, refreshing it via the persistent refresh token when close to expiry."""
     client_id = os.environ.get("STRAVA_APP_ID")
     client_secret = os.environ.get("STRAVA_CLIENT_SECRET")
     refresh_token = os.environ.get("STRAVA_REFRESH_TOKEN")

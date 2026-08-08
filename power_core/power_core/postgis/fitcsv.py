@@ -1,3 +1,4 @@
+"""Extract track points from FIT files and serialize them to CSV for downstream ingestion."""
 import fitdecode
 import csv
 from datetime import datetime
@@ -6,13 +7,7 @@ import io
 
 
 def extract_track_points(fit_file_path: str) -> List[Dict[str, Union[float, str]]]:
-    """
-    Parses a FIT file and yields a list of dicts with lat, long, and time.
-    Optimized for 'record' messages only.
-    :param: fit_file_path: path to binary FIT file
-    :return: list of dicts with lat, long, and time
-    """
-
+    """Parse 'record' messages from a FIT file into a list of timestamp/latitude/longitude dicts (degrees)."""
     points = []
 
     with fitdecode.FitReader(fit_file_path) as fit_file:
@@ -51,6 +46,7 @@ def extract_track_points(fit_file_path: str) -> List[Dict[str, Union[float, str]
 
 # Usage example for Data Engineering pipeline
 def save_to_csv(points: List[Dict], output_file: str):
+    """Write track points to a CSV file keyed on the first record's fields; no-op when empty."""
     if not points:
         return
 

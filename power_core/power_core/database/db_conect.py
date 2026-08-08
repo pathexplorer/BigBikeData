@@ -1,3 +1,4 @@
+"""PostgreSQL connectivity and streaming ingestion helpers built on Psycopg 3."""
 import os
 import psycopg
 from psycopg import sql

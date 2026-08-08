@@ -1,3 +1,5 @@
+"""Entry point for the power_core service: load config, pre-flight check secrets, and serve the transfer Flask API."""
+
 import sys
 import os
 from gcp_actions.common_utils.init_config import InjectConfig
@@ -32,7 +34,7 @@ _CRITICAL_SECRETS = [
 ]
 
 def _verify_secrets() -> None:
-    """Fetch every critical secret and verify required keys exist. Exit if any fail."""
+    """Pre-flight check: fetch every critical secret and confirm required keys exist, exiting the process on any failure."""
     project_id = os.environ.get("GCP_PROJECT_ID", "?")
     emulator_host = os.environ.get("SECRET_MANAGER_EMULATOR_HOST")
     mode = f"emulator at {emulator_host}" if emulator_host else "real GCP Secret Manager"
@@ -87,10 +89,7 @@ _verify_secrets()
 
 # --- 3. Define the Application Factory ---
 def create_app():
-    """
-    Application factory function.
-    Initializes Flask application and registers blueprints.
-    """
+    """Build and return the Flask application with all transfer blueprints registered."""
 
     from flask import Flask
     from power_core.routes.transfer import bp1 as upload_bp

@@ -1,11 +1,9 @@
+"""Babel localization setup for the Flask app and the locale selector used to pick the active language."""
 from flask import session, request, current_app
 from flask_babel import Babel
 
 def get_locale():
-    """
-    Selects language based on session or browser settings.
-    :return: The language code, e.g. 'en' or 'uk'.
-    """
+    """Return the active language: session override, else the best match from the browser's accepted languages."""
     # Use current_app to access the app's config
     return session.get('language', request.accept_languages.best_match(current_app.config['LANGUAGES'].keys()))
 
