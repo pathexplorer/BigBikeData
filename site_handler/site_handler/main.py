@@ -1,3 +1,4 @@
+"""Entry point for the site_handler service: load config, build the Flask app, and register its blueprints and middleware."""
 import sys
 import os
 from gcp_actions.common_utils.init_config import InjectConfig
@@ -46,18 +47,20 @@ def create_app():
     # --- Global Error Handler ---
     @flask_app.errorhandler(500)
     def internal_server_error(e6):
-        # This handler is triggered for any unhandled 500 error in the app.
+        """Render the 500 error page for any unhandled server error."""
         logger.error(f"Global 500 error handler triggered: {e6}")
         return render_template('500.html'), 500
 
     # Custom middleware to fix Host header for Firebase Hosting proxy
     class HostRewriteMiddleware:
+        """WSGI middleware that rewrites the Host header from X-Forwarded-Host for the Firebase Hosting proxy."""
+
         def __init__(self, app_instance):
+            """Wrap the given WSGI app instance."""
             self.app = app_instance
 
         def __call__(self, environ, start_response):
-            # If X-Forwarded-Host is present, use it to rewrite the Host header
-            # This makes Flask think it's running on the public domain
+            """Rewrite HTTP_HOST/SERVER_NAME/SERVER_PORT from the forwarded host so URL generation uses the public domain."""
             forwarded_host = environ.get('HTTP_X_FORWARDED_HOST')
             if forwarded_host:
                 environ['HTTP_HOST'] = forwarded_host

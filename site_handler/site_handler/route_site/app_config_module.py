@@ -1,3 +1,4 @@
+"""Flask SECRET_KEY resolution: environment variable, then local keyring, with hard failure in the cloud."""
 import os
 import logging
 import keyring
@@ -5,13 +6,7 @@ import keyring
 logger = logging.getLogger(__name__)
 
 def set_or_get_app_secret() -> str:
-    """
-    Retrieves the Flask SECRET_KEY with a secure order of precedence.
-
-    1. Checks for the 'FLASK_SECRET_KEY' environment variable (the highest priority).
-    2. If not found and running locally, uses the system keyring.
-    3. If not found and in a cloud environment, it raises an error.
-    """
+    """Return the Flask SECRET_KEY: from FLASK_SECRET_KEY, else the local keyring, failing hard in the cloud."""
     # 1. Prioritize Environment Variable
     secret_key = os.environ.get('FLASK_SECRET_KEY')
     if secret_key:

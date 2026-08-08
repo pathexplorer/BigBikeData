@@ -22,6 +22,7 @@ REDIRECT_URI = config.STRAVA_REDIRECT_URI
 
 @app.route("/")
 def home():
+    """Render the Strava OAuth authorization link for the first token exchange."""
     auth_url = (
         f"https://www.strava.com/oauth/authorize"
         f"?client_id={CLIENT_ID}"
@@ -35,6 +36,7 @@ def home():
 
 @app.route("/exchange_token")
 def exchange_token():
+    """Exchange the OAuth authorization code for access and refresh tokens."""
     code = request.args.get("code")
     if not code:
         return "Missing code", 400

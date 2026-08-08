@@ -1,3 +1,4 @@
+"""FIT/CSV processing instruments: conversion, GPS cleaning, bike labeling, and user notification emails."""
 import io, os, re, uuid, csv
 from pathlib import Path
 import subprocess
@@ -119,14 +120,7 @@ def convert_fit_to_csv(input_path, output_path, mode):
 
 @run_timer
 def label_bike(data_stream: Iterable[str]) -> str:
-    """
-    Identifies the bike model (Strava gear_id) by searching the data stream
-    for the first occurrence of a known sensor ANT device number. The search stops
-    immediately upon finding the first matching code.
-
-    :param data_stream: An iterable object yielding file lines (the file object itself).
-    :return: The corresponding gear_id b1234567 or a stopgap ID b0000000 if no match is found.
-    """
+    """Return the Strava gear id matching the first known ANT sensor number in the stream, or a stopgap id."""
     # 1. Define the sensor codes and their associated gear_ids
     GEAR_MAPPING = {
         'ant_device_number,"4315"': 'b7647614',  # MTB Code 1
@@ -148,12 +142,7 @@ def label_bike(data_stream: Iterable[str]) -> str:
 
 @run_timer
 def clean_data_stream(data_stream: Iterable[str]) -> Generator[tuple[str, bool, int], Any, None]:
-    """
-    Processes a stream of text lines, applying cleaning and yielding results.
-    :param data_stream: An iterable object yielding file lines (e.g., the file object itself).
-    :return: yield - a tuple containing the cleaned line (str) and the count of changes made (int).
-
-    """
+    """Yield each streamed line cleaned of negative latitudes and fixed serial numbers, with a validation flag and change count."""
     # Pre-compile regex patterns for efficiency
     LAT_PATTERN = re.compile(r'position_lat,"(-?\d+)",semicircles,position_long,"-?\d+",semicircles,')
     SERIAL_NUMBER_PATTERN = re.compile(r'serial_number,"SN\.(\d+)"')
@@ -189,13 +178,7 @@ def clean_data_stream(data_stream: Iterable[str]) -> Generator[tuple[str, bool, 
 
 @run_timer
 def cleaner_run(input_path: str, output_path: str, pipeline: str):
-    """
-    Run analyze the .csv file in stream mode, without loading it in memory
-    :param input_path:
-    :param output_path:
-    :param pipeline: 'public' or 'private'
-    :return:
-    """
+    """Stream-clean a FIT CSV for the given pipeline, saving the fixed file only when needed, and return the detected bike id and issue count."""
     temp_file_name = None
     validation_failed = False
     logger.debug(f"Starting GPS cleaning for '{input_path}'.")
@@ -237,16 +220,7 @@ def cleaner_run(input_path: str, output_path: str, pipeline: str):
 
 @run_timer
 def load_email_template(locale: str, result : str) -> tuple[str, str]:
-    """
-    Loads email subject and body from template files based on locale.
-    :param locale: The desired language ('en', 'uk', etc.).
-    :param result: 'find' or 'not_found'
-
-    Returns:
-        A tuple containing the (subject_template, body_template).
-        Defaults to English if the specified locale is not found.
-
-    """
+    """Load the localized subject and body email templates for the given clean result, defaulting to English."""
     # Determine the base path of the templates directory
     type_of_email = None
     if result == "find":
@@ -289,6 +263,7 @@ def write_email_with_link(
             bad_lines,
             user_email
 ):
+    """Notify the user about their cleaned FIT: email a download link when found, or a warning when not."""
     if not (user_email and original_filename):
         logger.warning("Emailing skipped: user_email or original_filename not provided.")
         return
@@ -400,15 +375,7 @@ def extract_points_from_csv_string(csv_data: str) -> List[Dict[str, Union[float,
 # ---- Usually, the FIT file already decodes to csv, and is possible simple extract fron csv
 @run_timer
 def extract_track_points_from_fit(fit_file_path: str) -> List[Dict[str, Union[float, str]]]:
-    """
-    Parses a FIT file and yields a list of dicts with lat, long, and time.
-    Optimized for 'record' messages only.
-    In decoded FIT this field writes as:
-    timestamp 1060261132 s
-    position_lat 580333330 semicircles
-    position_long 385432325	semicircles
-    """
-
+    """Parse 'record' messages from a FIT file into timestamp/latitude/longitude dicts, converting semicircles to degrees."""
     points = []
 
     with fitdecode.FitReader(fit_file_path) as fit_file:
@@ -444,11 +411,7 @@ def extract_track_points_from_fit(fit_file_path: str) -> List[Dict[str, Union[fl
 # ----- SEPARATE LOGIC FOR EXPERIMENTS --- PART 2\2
 # In cloud pipeline results will load to PostgresSQL without saving to VM or Storage
 def save_to_csv(points: List[Dict], output_file: str):
-    """
-    :param points: results from extract_track_points
-    :param output_file: name of new .csv file
-    :return: .csv with records 2023-01-17T08:35:24+00:00,45.48043267342579,33.732682760756281
-    """
+    """Write track points to a CSV file keyed on the first record's fields; no-op when empty."""
     if not points:
         return
 

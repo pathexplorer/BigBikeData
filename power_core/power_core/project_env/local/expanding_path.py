@@ -1,3 +1,4 @@
+"""Deprecated path expansion helper; superseded by Path().expanduser() usage in project code."""
 # import os
 # from pathlib import Path
 #

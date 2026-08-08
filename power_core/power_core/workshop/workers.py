@@ -1,3 +1,4 @@
+"""Activity processing pipelines: orchestrate FIT download, GPS cleaning, re-encoding, emailing, and Strava upload."""
 from fit2gpx import Converter
 from gcp_actions.blob_manipulation import StorageManipulations
 from gcp_actions.common_utils.timer import time_stage, log_duration_table
@@ -17,7 +18,8 @@ CONVERTER = Converter()
 
 class ActivityProcessingPipeline:
     """
-    A class to manage the multi-stage processing of a .FIT activity file.
+    Orchestrates the multi-stage processing of a .FIT activity file.
+
     Can be triggered from GCS, an HTTP request with file data, or a Pub/Sub message with a Dropbox path.
     """
     type Locale = Literal["en", "uk"]
@@ -31,10 +33,10 @@ class ActivityProcessingPipeline:
             pipeline_type: str | None = None
     ):
         """
-        Initializes the pipeline with the source GCS blob path or direct file data.
-        :param file_data: Raw bytes of the file, if not downloading from GCS.
-        :param locale: The user's language preference
-        :param pipeline_type: runs one from two styles of a pipeline
+        Initializes the pipeline with a source filename, optional raw file bytes, or a Dropbox path.
+
+        The `pipeline_type` selects the filename strategy: 'private' keeps the original
+        name while 'public' uses a unique ID to avoid GCS collisions.
         """
 
         self.bucket_name = GCS_BUCKET_NAME
@@ -112,7 +114,7 @@ class ActivityProcessingPipeline:
 
     def stage_02_fit_to_unexplored_csv(self):
         """
-        Converts the local .FIT file to an 'unexplored' CSV for processing.
+        Decodes the local .FIT file into an 'unexplored' CSV for GPS cleaning.
         """
         convert_fit_to_csv(self.local_fit_path, self.local_unexplored_csv_path, mode='decode')
         logger.debug("FIT decoded to CSV.")
@@ -121,8 +123,9 @@ class ActivityProcessingPipeline:
 
     def stage_03_clean_gps_data(self):
         """
-        Cleans the unexplored CSV, fixes GPS problems, stores a bike model,
-        and uploads the fixed CSV to GCS.
+        Cleans GPS problems in the unexplored CSV and captures the detected bike model.
+
+        Uploads the fixed CSV to GCS only when issues were found or the private pipeline runs.
         """
         self.bike_model, self.bad_lines = cleaner_run(
             self.local_unexplored_csv_path,
@@ -162,7 +165,7 @@ class ActivityProcessingPipeline:
         logger.debug(f"Re-encoded FIT uploaded to: {upload_bucket}/{self.gcs_fixed_fit_path}")
 
     def stage_04_01_email_cleaned_fit(self, result: str):
-        """ Generates a proxy download link and emails it to the user."""
+        """ Emails the user a download link for the cleaned FIT, based on the clean result."""
         write_email_with_link(
             self.locale,
             result,
@@ -194,14 +197,9 @@ class ActivityProcessingPipeline:
             logger.warning(f"STRAVA UPLOAD SKIPPED: Mode is '{current_mode}'.")
 
     def stage_06ver2_create_parce_csv(self):
-        """
-        :return:
-        """
+        """Builds a parsed CSV from the cleaned data for PostgreSQL ingestion (placeholder stage)."""
     def stage_07ver2_load_in_postgresql(self):
-        """
-
-        :return:
-        """
+        """Loads the parsed CSV rows into PostgreSQL (placeholder stage)."""
     # def stage_06_fit_to_gpx(self):
     #     """ Converts the fixed FIT to GPX and uploads it to GCS."""
     #     CONVERTER.fit_to_gpx(
@@ -223,7 +221,7 @@ class ActivityProcessingPipeline:
     #     logger.debug(f"Heatmap updated for bike model: {self.bike_model}")
 
     def run_full_pipeline(self):
-        """ Executes all stages of the private activity processing pipeline."""
+        """Executes every stage of the private activity processing pipeline with timing."""
         logger.info("Private pipeline running")
         all_stage_times = {}
         with time_stage("1 Download FIT", all_stage_times):

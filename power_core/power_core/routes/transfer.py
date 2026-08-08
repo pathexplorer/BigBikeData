@@ -1,3 +1,4 @@
+"""Flask blueprints exposing the power_core HTTP endpoints: Dropbox webhook sync, Pub/Sub processing, and file upload."""
 from power_core.dropbox_usage.get_from_dropbox import connect_to_dropbox
 from power_core.dropbox_usage.utils import DropboxAuth
 import logging
@@ -15,11 +16,7 @@ bp_private = Blueprint("private_processing", __name__)
 
 @bp2.route(f'/{DROpbox_WEBHOOK_PATH}', methods=['POST'])
 def dropbox_webhook():
-    """
-    Handles the webhook verification and triggers the sync process.
-    This is the PRODUCER endpoint.
-    """
-    # 1. Verify the request is from Dropbox
+    """PRODUCER endpoint: verify Dropbox signature, then trigger the sync process."""
     da = DropboxAuth()
     if not da.check_signature():
         return Response("Forbidden", status=403)
@@ -38,7 +35,7 @@ def dropbox_webhook():
 
 @bp2.route('/challenge', methods=['GET'])
 def webhook_verification():
-    """ Responds to the Dropbox webhook verification challenge."""
+    """Echo back the challenge param to confirm webhook ownership."""
     challenge = request.args.get('challenge')
     if challenge:
         logger.info(f"Responding to Dropbox challenge: {challenge}")
@@ -47,14 +44,17 @@ def webhook_verification():
 
 @bp3.route('/pubsub-processing-handler', methods=['POST'])
 def handle_pubsub_message():
+    """Process public Pub/Sub push messages via shared pipeline handler."""
     return handle_message("public")
 
 @bp_private.route('/private-processing-handler', methods=['POST'])
 def handle_private_message():
+    """Process private Pub/Sub push messages via shared pipeline handler."""
     return handle_message("private")
 
 @bp1.route(f"/{PRIVATE_UPLOAD_TOKEN}", methods=["POST"])
 def trigger_upload():
+    """Trigger a custom-file session upload for a given GCS folder."""
     logger.info("Uploading custom files session")
     data = request.get_json(force=True)
     gcs_folder = data.get("gcs_folder")

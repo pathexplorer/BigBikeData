@@ -19,11 +19,7 @@ bucket_name = "GCS_BUCKET_NAME"
 
 @run_timer
 def extract_first_time_tag(file_path: str) -> str | None:
-    """
-    Get a timestamp of activity from a GPX file
-    :param file_path:
-    :return:
-    """
+    """Return the first <time> value found in a GPX file, or None if absent."""
     try:
         time_pattern = re.compile(r"<time>(.*?)</time>")
         with open(file_path, "r", encoding="utf-8") as f:
@@ -44,18 +40,7 @@ def extract_first_time_tag(file_path: str) -> str | None:
 
 @run_timer
 def strip_source_content(file_path: str) -> None:
-    """
-    Strips the GPX file header and footer in-place to prepare it for concatenation.
-    This function reads a GPX file, removes the first two lines (XML declaration
-    and <gpx> tag) and the last line (</gpx> tag), and overwrites the file
-    with the stripped content.
-    Args:
-        file_path: The absolute path to the GPX file to be modified.
-    Raises:
-        FileNotFoundError: If the specified file_path does not exist.
-        IOError: If there is an error reading from or writing to the file.
-        Exception: For any other unexpected errors.
-    """
+    """Strip the GPX header/footer in place, leaving only track content ready for concatenation."""
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -80,9 +65,7 @@ def strip_source_content(file_path: str) -> None:
 
 @run_timer
 def append_gpx_via_compose(local_gpx: str, bike_model: str, gpx_gcs_path: str = None) -> None:
-    """
-    gpx_gcs_path: if enable functional for delete a GPX file after appending to heatmap and GIS analyze (coming soon)
-    """
+    """Append a stripped GPX fragment to the bike's heatmap via GCS compose, rolling to a new version at the 32-compose cap."""
     # Get name of bucket from environment
     bucket = get_bucket(bucket_name)
 

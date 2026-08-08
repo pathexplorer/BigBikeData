@@ -1,3 +1,4 @@
+"""Public-facing frontend routes: landing page, FIT upload to Pub/Sub, download of cleaned files, and success page."""
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, send_from_directory, \
     session, abort
 from flask_babel import _

@@ -1,3 +1,4 @@
+"""Stream files from a GCS folder into Dropbox using resumable upload sessions."""
 import dropbox
 import io
 import os
@@ -13,11 +14,7 @@ logger = logging.getLogger(__name__)
 bucket = get_bucket("GCS_BUCKET_NAME")
 
 def upload_custom_files_session(gcs_folder: str):
-    """
-    curl -X POST https://{LINK}.app/upload_custom_files_session \
-    -H "Content-Type: application/json" \
-    -d '{"gcs_folder": "heatmap/"}'
-    """
+    """Upload every blob under the given GCS folder to Dropbox via resumable sessions, returning the uploaded paths."""
     blobs = list(bucket.list_blobs(prefix=gcs_folder))
     if not blobs:
         return jsonify({"error": "No files found in folder"}), 404

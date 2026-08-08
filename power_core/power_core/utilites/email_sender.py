@@ -1,3 +1,4 @@
+"""Email sending with pluggable backends: local SMTP for development and the Brevo API for production."""
 from power_core.project_env.config import SMTP_USER, SMTP_PASSWORD, SMTP_SERVER, SMTP_PORT, SMTP_SENDER, BREVO_API_KEY, SENDER_NAME, SENDER_EMAIL, EMAIL_MODE
 import smtplib
 from email.mime.multipart import MIMEMultipart

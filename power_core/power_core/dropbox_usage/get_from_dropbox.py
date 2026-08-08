@@ -1,3 +1,4 @@
+"""Dropbox sync entry point: list watched-folder changes and publish pointers to new FIT files to Pub/Sub."""
 import logging
 import uuid
 from gcp_actions.firestore_box.json_manipulations import FirestoreMagic
@@ -17,17 +18,22 @@ import dropbox
 logger = logging.getLogger(__name__)
 
 class DropBoxCursor:
+    """Persists the Dropbox sync cursor in Firestore so incremental listing continues where it left off."""
+
     def __init__(self, db_cursor_doc: str):
+        """Point the cursor store at the Firestore document identified by db_cursor_doc."""
         self.db_cursor_doc = db_cursor_doc
         self.client = FirestoreMagic("cursors", self.db_cursor_doc)
 
     @run_timer
     def load_cursor(self):
+        """Return the stored Dropbox cursor, or None on the first run."""
         dict_cursor = self.client.load_firejson()
         return dict_cursor.get("cursor")
 
     @run_timer
     def save_cursor(self, cursor):
+        """Persist the given cursor, or clear the document when it is empty."""
         if cursor:
             self.client.set_firejson({"cursor": cursor}, True)
         else:
@@ -36,7 +42,7 @@ class DropBoxCursor:
 
 @run_timer
 def connect_to_dropbox():
-
+    """Incrementally list the watched Dropbox folder and publish each new FIT file to Pub/Sub."""
     dbc = DropBoxCursor("db_cursor")
     logger.info("Dropbox sync service started.")
     da = DropboxAuth()

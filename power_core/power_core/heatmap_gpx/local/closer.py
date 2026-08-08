@@ -8,6 +8,7 @@ import re
 closer_tag="</gpx>"
 
 def check_if_exist(filename1: str) -> str | None:
+    """Check the last lines of a GPX file for a closing tag, appending it when missing."""
     with open(filename1, "r", encoding="utf-8") as file:
         lines=file.readlines()[-2:]
         combined = "".join(lines)
@@ -22,6 +23,7 @@ def check_if_exist(filename1: str) -> str | None:
             return None
 
 def add_closer(filename2: str) -> str | None:
+    """Append the GPX closing tag to the given file."""
     with open(filename2, "a", encoding="utf-8") as f:
         f.write(closer_tag)
     print("Adding successfully")

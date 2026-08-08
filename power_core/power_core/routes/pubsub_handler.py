@@ -1,3 +1,4 @@
+"""Shared Pub/Sub push handler that decodes, validates, deduplicates, and routes messages to the activity pipelines."""
 import base64
 import json
 import logging
@@ -29,8 +30,9 @@ PIPELINE_CONFIG = {
 
 
 def check_and_mark_processed(idempotency_key: str, collection_name: str, ttl_hours: int = 24) -> bool:
-    """
-    Checks if a message is processed. Returns True if duplicate, False if new.
+    """Deduplicate Pub/Sub messages via a Firestore idempotency marker; True means already processed.
+
+    Fails closed (True) when the DB check errors, so malformed messages don't trigger infinite retry loops.
     """
     try:
         db = get_any_client("firestore")
@@ -57,8 +59,9 @@ def check_and_mark_processed(idempotency_key: str, collection_name: str, ttl_hou
 
 
 def execute_pipeline(pipeline_instance, method_name: str, upload_id: str, collection_name: str):
-    """
-    Executes the pipeline method and handles Firestore status updates (Success/Failure).
+    """Run the pipeline method and record completion/failure status in Firestore.
+
+    Returns a 200 to Pub/Sub on processing errors so logic bugs are acknowledged instead of retried forever.
     """
     fm = FirestoreMagic(collection_name, upload_id)
 
@@ -91,9 +94,7 @@ def execute_pipeline(pipeline_instance, method_name: str, upload_id: str, collec
 
 
 def handle_message(style_pipeline: str):
-    """
-    Parses a Pub/Sub message and routes to the correct pipeline strategy.
-    """
+    """Entry point for Pub/Sub push subscriptions: decode, validate, deduplicate, and route a message to its pipeline strategy."""
     envelope = request.get_json()
     if not envelope or 'message' not in envelope:
         logger.error("Invalid Pub/Sub message format.")

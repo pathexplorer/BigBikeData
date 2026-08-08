@@ -23,6 +23,7 @@ DROPBOX_REDIRECT_URI = config.DROPBOX_REDIRECT_URI
 
 @app.route("/")
 def index():
+    """Redirect to the Dropbox OAuth consent screen to obtain an authorization code."""
     params = {
         "client_id": DROPBOX_CLIENT_ID,
         "response_type": "code",
@@ -36,6 +37,7 @@ def index():
 
 @app.route("/oauth/callback")
 def oauth_callback():
+    """Exchange the OAuth code for tokens and persist the refresh token in Secret Manager."""
     code = request.args.get("code")
     print(code) #DELETE
     if not code:

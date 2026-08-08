@@ -1,3 +1,4 @@
+"""Diagnostic script: verify the frontend can read a download record and generate a signed GCS URL."""
 import os
 import sys
 from gcp_actions.client import get_any_client, get_env_and_cashed_it

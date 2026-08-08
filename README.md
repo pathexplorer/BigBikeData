@@ -49,3 +49,14 @@ The frontend is fronted by Firebase Hosting, which provides security redirects a
 ## Dependencies
 
 Both services share an external dependency on the [`gcp_actions`](https://github.com/pathexplorer/gcp_actions) package for GCP utilities (Pub/Sub, Firestore, GCS, Secret Manager, etc.).
+
+## Code Documentation
+
+All Python modules, classes, and functions carry docstrings. Follow the `technical-writer` conventions when writing or reviewing them:
+
+- Keep docstrings to 1–3 lines; explain **why** or domain context, not what the code already shows.
+- Module docstrings are exactly 1–2 sentences describing the module's core purpose.
+- Rely on type hints — avoid `Args:`/`Returns:` sections unless the signature is dynamic or untyped.
+- Always use triple double-quotes; single-line docstrings end on the same line.
+
+Every tracked `.py` file should have a module docstring, and every class and function its own.

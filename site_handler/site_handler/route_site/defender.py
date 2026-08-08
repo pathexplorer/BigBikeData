@@ -1,3 +1,4 @@
+"""Request defense middleware: block direct Cloud Run access and reject any Host not on the allowlist."""
 from flask import Blueprint, request, abort
 import logging
 from site_handler.utilites.site_config import ALLOWED_DOMAINS

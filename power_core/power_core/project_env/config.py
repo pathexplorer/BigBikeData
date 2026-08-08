@@ -1,3 +1,4 @@
+"""Central configuration for power_core: loads env-derived constants and fails fast when required variables are missing."""
 import os
 import sys
 import logging

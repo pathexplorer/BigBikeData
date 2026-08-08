@@ -1,3 +1,4 @@
+"""Central configuration for site_handler: environment-derived constants for GCS, Pub/Sub, and allowed domains."""
 import os
 import logging
 logger = logging.getLogger(__name__)
