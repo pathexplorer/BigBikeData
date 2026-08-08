@@ -2,6 +2,40 @@
 
 Internal Flask service that ingests, processes, and enriches cycling activity data (.FIT files). Deployed on Google Cloud Run (private, no public access).
 
+## Before You Start
+
+This project depends on the **[gcp_actions](https://github.com/pathexplorer/gcp_actions)** library.
+Both repos must be cloned **side-by-side** in the same parent directory:
+
+```
+~/projects/main/
+├── BigBikeData/          ← this repo
+│   ├── power_core/
+│   ├── site_handler/
+│   └── local_config.json ← already exists, pre-configured for local dev
+└── gcp_actions/          ← library repo (clone separately)
+    └── gcp_actions/
+```
+
+```bash
+# 1. Clone both repos
+git clone https://github.com/pathexplorer/BigBikeData.git
+git clone https://github.com/pathexplorer/gcp_actions.git
+
+# 2. Verify the layout
+ls BigBikeData/power_core/pyproject.toml   # → must exist
+ls gcp_actions/pyproject.toml              # → must exist
+ls BigBikeData/local_config.json           # → pre-configured for local dev
+```
+
+> **Note:** `BigBikeData/local_config.json` already exists in the repo with sane defaults
+> for local development. It is the **local equivalent of Cloud Run environment variables** —
+> the same keys the app reads from the GCP environment in production are set here for local dev.
+> You generally don't need to edit it unless you want to change port numbers or feature flags.
+
+> 👉 **New here?** Jump straight to [Quick Start](#quick-start-step-by-step) to get the app running.
+> The sections below (Pipeline, Architecture) are reference — come back when you need them.
+
 ## Pipeline Stages
 
 The `ActivityProcessingPipeline` class (`workshop/workers.py`) orchestrates the full workflow:
@@ -43,7 +77,7 @@ The `ActivityProcessingPipeline` class (`workshop/workers.py`) orchestrates the 
 ## Two Pipeline Modes
 
 ### Private Pipeline
-- Triggered by a Dropbox webhook at the `/q50WoEoBoHoOoOoK0iBa216SztNO5R6c2vK0tb` endpoint
+- Triggered by a Dropbox webhook at a secret verification path (configured via `DROpbox_WEBHOOK_PATH` in secrets)
 - Syncs .FIT files from the Dropbox `/apps/activities` folder
 - Full processing: clean → Strava upload → heatmap → database
 - Uses original filenames
@@ -131,13 +165,17 @@ Loaded by `DropboxAuth` on first webhook request. Contains OAuth tokens:
 
 ### `local_config.json` (local dev only)
 
-Overrides any of the above + adds local-only PostgreSQL config:
+This file is the **local equivalent of Cloud Run environment variables**.
+In production, the 4 pointer vars are set as Cloud Run env vars; locally,
+`local_config.json` provides those same pointers + local-specific overrides
+(emulator hosts, PostgreSQL host, feature flags).
 
 ```json
 {
   "GCP_PROJECT_ID": "local-test-project",
   "SECRET_MANAGER_EMULATOR_HOST": "localhost:8083",
   "FIRESTORE_EMULATOR_HOST": "localhost:8085",
+  "PUBSUB_EMULATOR_HOST": "localhost:8086",
   "APP_JSON_KEYS": "fullstack-app-json-keys",
   "SEC_DROPBOX": "dropbox-secrets",
   "S_ACCOUNT_DROPBOX": "local-dev@placeholder.iam.gserviceaccount.com",
@@ -152,30 +190,239 @@ Overrides any of the above + adds local-only PostgreSQL config:
 
 ### Prerequisites
 
-- **Python 3.12+**
-- **[uv](https://docs.astral.sh/uv/)** — Python package manager
-- **Podman** — for the emulator containers
-- **gocryptfs** — encrypted storage for secrets (`sudo apt install gocryptfs`)
-- **Java JRE 21** (optional) — for FIT→CSV conversion (`FitCSVTool.jar`)
-
-### Quick Start
+Run these checks before starting. Every item must pass.
 
 ```bash
-# 1. Install dependencies
+# 1. Python 3.12+
+python --version
+# → Python 3.12.x  (or newer)
+
+# 2. uv package manager
+uv --version
+# → uv 0.x.x
+# Install: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 3. Podman (for emulator containers)
+podman --version
+# → podman version 4.x.x  (or newer)
+
+# 4. gocryptfs (for encrypted secrets volume)
+gocryptfs -version 2>/dev/null || echo "NOT INSTALLED"
+# Install: sudo apt install gocryptfs
+
+# 5. Ports must be free
+ss -tln | grep -E '808[1356]' && echo "⚠️  Port conflict!" || echo "✅ Ports 8081,8083,8085,8086 are free"
+
+# 6. GCP project with required services enabled
+#    (Firestore, Secret Manager, Cloud Storage, Pub/Sub)
+gcloud config get-value project
+# → your-project-id  (must be set)
+
+# 7. Java JRE 21 (only needed for FIT→CSV conversion)
+java -version 2>&1 | head -1
+
+# 8. ngrok authtoken (required — real Dropbox webhooks are used in local dev)
+#    Either set it in env, or store it in KDE Wallet under key 'ngrok':
+#    export NGROK_AUTHTOKEN=your_token
+```
+
+### Quick Start (step by step)
+
+**1. Install Python dependencies:**
+```bash
 cd power_core
 uv venv
 uv pip install -e .
+```
+> ⚠️ If this fails with a path error about `gcp_actions`, you forgot to clone the
+> library repo. See [Before You Start](#before-you-start) — both repos must be siblings.
 
-# 2. Start emulators (Secret Manager + Firestore, inside a podman pod)
-./local_dev.sh start
+Expected: no errors. Verify with:
+```bash
+.venv/bin/python -c "import power_core; print('✅ power_core imported')"
+.venv/bin/python -c "from gcp_actions.firestore_box.json_manipulations import FirestoreMagic; print('✅ gcp_actions imported')"
+```
 
-# 3. Seed secrets (first time only — creates encrypted volume)
-#    Put your keys.env in power_core/power_core/project_env/keys.env
-./local_dev.sh seed
+**2. Create `keys.env` (first time only):**
 
-# 4. Run (env vars come from local_config.json automatically)
+The `local_dev.sh start` script auto-detects this file and seeds the Secret Manager
+emulator with it. Create it **before** starting the emulators:
+
+```bash
+# Minimal — just enough to start (dummy values):
+cat > power_core/power_core/keys.env << 'EOF'
+GCP_PROJECT_ID=local-test-project
+FLASK_SECRET_KEY=dev-secret-key
+S_ACCOUNT_RUN=local-dev@placeholder.iam.gserviceaccount.com
+S_ACCOUNT_DROPBOX=local-dev@placeholder.iam.gserviceaccount.com
+EOF
+```
+
+Replace with real tokens when you need Dropbox sync, Strava upload, or email sending.
+For the full list of available keys, see the [keys.env template](#keysenv-format--copy-this-template-and-fill-in-your-values) below.
+
+**3. Start emulators:**
+```bash
+# Pull real Firestore config from GCP + seed Secret Manager from keys.env:
+./local_dev.sh start --from-gcp
+```
+One command does everything:
+- Builds & starts the emulator containers (Secret Manager on :8083, Firestore on :8085, Pub/Sub on :8086)
+- Mounts the encrypted volume for secrets
+- Starts the **ngrok tunnel** (default) so Dropbox can deliver real webhooks
+- `--from-gcp`: pulls `config/local/settings/data` from your real GCP Firestore
+- Auto-seeds Secret Manager from `keys.env` (if found)
+
+Expected output ends with:
+```
+[INFO]  ------------------------------------------------------
+[INFO]  All emulators are running.
+[INFO]
+[INFO]    ✅ Secret Manager  : localhost:8083
+[INFO]    ✅ Firestore        : localhost:8085
+[INFO]    ✅ Pub/Sub          : localhost:8086
+[INFO]    ✅ Encrypted volume : mounted
+[INFO]
+[INFO]  Next: run the app (step 4).
+[INFO]  ------------------------------------------------------
+```
+
+**3. Verify emulators are working:**
+```bash
+# Secret Manager — health check
+curl http://localhost:8083/health
+# → {"emulator":"secret-manager","status":"ok"}
+
+# Firestore — read the seeded document
+FIRESTORE_EMULATOR_HOST=localhost:8085 python -c "
+from google.cloud import firestore
+db = firestore.Client()
+doc = db.collection('config').document('local').collection('settings').document('data').get()
+if doc.exists:
+    print('✅ Firestore OK —', len(doc.to_dict()), 'keys')
+else:
+    print('❌ Document missing')
+"
+```
+
+> 💡 If you ran `./local_dev.sh start --from-gcp` in step 3, the Firestore
+> document should already contain your production keys (not the 6 placeholders).
+
+**4. Run the app:**
+```bash
 .venv/bin/python power_core/main.py
 ```
+
+**5. Stop everything when done:**
+```bash
+./local_dev.sh stop
+# → stops pod + unmounts encrypted volume
+```
+
+### `keys.env` reference
+
+If you need to re-seed or add real tokens later:
+
+```bash
+./local_dev.sh seed
+```
+
+**Full `keys.env` template** (all keys, for reference):
+```bash
+# ============================================================
+# Secret: fullstack-app-json-keys  (general app configuration)
+# ============================================================
+
+# Required for the app to start:
+GCP_PROJECT_ID=local-test-project
+FLASK_SECRET_KEY=any-random-string-here
+S_ACCOUNT_RUN=local-dev@placeholder.iam.gserviceaccount.com
+S_ACCOUNT_DROPBOX=local-dev@placeholder.iam.gserviceaccount.com
+
+# Required for the private pipeline (Dropbox + Strava):
+SEC_DROPBOX=dropbox-secrets
+GCS_BUCKET_NAME=your-bucket-name
+DROPBOX_TOPIC_NAME=dropbox-handler-testing
+GCP_TOPIC_NAME=pubsub-topic-name
+CLOUD_RUN_SERVICE=power-core
+CLOUD_RUN_SERVICE_PUB=power-core-public
+
+# Email (Brevo or SMTP) — needed to send results to users:
+EMAIL_MODE=brevo
+BREVO_API_KEY=your-brevo-api-key
+SMTP_PASSWORD=your-smtp-password
+SMTP_SENDER=sender@example.com
+SMTP_SERVER=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your-smtp-user
+
+# Feature toggles:
+STRAVA_UPLOAD=false
+
+# Optional — web frontend config (only needed for site_handler):
+COOKIE_DOMAIN=localhost
+FRONTEND_BASE_URL=http://localhost:5000
+PRIVATE_ACCESS_TOKEN=some-token
+PRIVATE_UPLOAD_TOKEN=some-upload-token
+
+# Optional — Eventarc triggers:
+EVENTARC_SA=
+EVENTARC_TRIGGER=
+
+# Optional — donation UI (can be empty):
+DONATION_HTML_SNIPPET_MONO=
+DONATION_HTML_SNIPPET_PRIVAT=
+
+# Optional — version tags:
+BACKEND_TAG=dev
+FRONTEND_TAG=dev
+
+# Optional — storage buckets (public pipeline):
+GCS_PUB_OUTPUT_BUCKET=local-output-bucket
+
+# ============================================================
+# Secret: dropbox-secrets  (OAuth tokens)
+# ============================================================
+
+# Required for Dropbox webhook + file sync:
+DROPBOX_APP_KEY=your-dropbox-app-key
+DROPBOX_APP_SECRET=your-dropbox-app-secret
+DROPBOX_REFRESH_TOKEN=your-dropbox-refresh-token
+
+# Required for Strava upload:
+STRAVA_APP_ID=your-strava-app-id
+STRAVA_CLIENT_SECRET=your-strava-client-secret
+STRAVA_REFRESH_TOKEN=your-strava-refresh-token
+STRAVA_ACCESS_TOKEN=your-strava-access-token
+STRAVA_EXPIRES_AT=0
+```
+
+### How configuration flows at startup
+
+When you run `power_core/main.py`, `InjectConfig.load_and_inject_config()` executes:
+
+```
+1. Firestore emulator (localhost:8085)
+   └─ Reads config/local/settings/data → base config dict (6 keys)
+
+2. local_config.json (BigBikeData/local_config.json)
+   └─ Overrides + adds keys (APP_JSON_KEYS, SEC_DROPBOX, PG_HOST, etc.)
+
+3. Secret Manager emulator (localhost:8083)
+   └─ Fetches fullstack-app-json-keys (28 keys) + dropbox-secrets (8 keys)
+   └─ Merged on top of Firestore/local defaults
+
+4. local_config.json — applied AGAIN
+   └─ Local overrides win over everything (highest precedence)
+
+5. All keys injected into os.environ
+```
+
+Key takeaway: you only need to configure two things:
+- **`keys.env`** — real tokens/secrets (seeded once into the encrypted volume)
+- **`local_config.json`** — local overrides (port numbers, project ID, feature flags)
+
+Everything else comes from the emulators automatically.
 
 ### Pre-flight Checks
 
@@ -243,11 +490,84 @@ Secrets are stored in a **gocryptfs-encrypted volume** — never plaintext on di
 ### Firestore Emulator
 
 The Firestore emulator provides the `config/local/settings/data` document used by
-`InjectConfig` at startup. It runs as a container inside the same podman pod, with
-data persisted in `.emulator_data_fs/` (not encrypted — dev config only).
+`InjectConfig` at startup. It runs as a container inside the same podman pod.
+Data is stored **in memory** — lost on stop. Re-seed with `./local_dev.sh start --from-gcp`
+after each restart.
 
-Seeding happens automatically on first `./local_dev.sh start` via `seed.py`.
+**Two ways to populate it:**
+
+#### 1. Pull from GCP (the standard workflow)
+
+```bash
+# One command — starts emulators AND pulls real GCP config:
+./local_dev.sh start --from-gcp
+
+# Or manually if emulators are already running:
+gcloud auth application-default login   # one-time
+FIRESTORE_EMULATOR_HOST=localhost:8085 \
+    python ../gcp_actions/gcp_actions/emulators/firestore/seed.py --from-project
+```
+
+This reads the exact same document the production app uses and seeds it locally.
+Add `--defaults-json` to override specific keys for local dev:
+
+```bash
+FIRESTORE_EMULATOR_HOST=localhost:8085 \
+    python ../gcp_actions/gcp_actions/emulators/firestore/seed.py \
+    --from-project my-real-gcp-project \
+    --defaults-json '{"LOGGING_LEVEL":"DEBUG"}'
+```
+
+#### 2. Placeholder defaults (what `local_dev.sh start` seeds before you pull)
+
+`./local_dev.sh start` seeds these 6 placeholder keys so the emulator isn't
+empty on first run. They are overwritten when you run `--from-project` above.
+
+| Key | Default value |
+|---|---|
+| `CS_BUCKET_NAME` | `local-dev-bucket` |
+| `EMAIL_MODE` | `brevo` |
+| `GCS_PUB_INPUT_BUCKET` | `local-input-bucket` |
+| `GCS_PUB_OUTPUT_BUCKET` | `local-output-bucket` |
+| `DROPBOX_TOPIC_NAME` | `dropbox-handler-testing` |
+| `LOGGING_LEVEL` | `DEBUG` |
+
 Default values can be customized in `local_config.json` (which takes highest precedence).
+
+### Pub/Sub Emulator
+
+`./local_dev.sh start` also starts a **Pub/Sub emulator** inside the pod
+(`bigbikedata-ps-emulator`, published on `localhost:8086`). It uses the same
+`google/cloud-sdk:emulators` image as Firestore.
+
+The pipeline's `publish_to_pubsub` step (used by the Dropbox sync flow) needs a
+Pub/Sub endpoint locally. Previously the Pub/Sub emulator had to be started
+**manually** and was NOT attached to the pod — which made the pipeline fail.
+Now it is a first-class emulator started automatically.
+
+On startup the script also **auto-creates the topic + push subscription** so the
+pipeline works end-to-end without manual steps:
+
+- **Topic:** `DROPBOX_TOPIC_NAME` from `local_config.json` (default `dropbox-handler-testing`)
+- **Subscription:** `local-processing-sub`
+- **Push endpoint:** `http://localhost:8081/private-processing-handler` (the local backend)
+
+The app connects to the emulator via `PUBSUB_EMULATOR_HOST` (added to
+`local_config.json`), which routes the gRPC Pub/Sub client to the emulator.
+
+Configurable via env vars (defaults shown):
+```bash
+PUBSUB_EMULATOR_HOST=127.0.0.1:8086
+PUBSUB_TOPIC_NAME=dropbox-handler-testing
+PUBSUB_SUBSCRIPTION_NAME=local-processing-sub
+PUBSUB_PUSH_ENDPOINT=http://localhost:8081/private-processing-handler
+```
+
+> **Note:** The topic/subscription setup and Firestore seeding run with the
+> project's venv python (`.venv/bin/python`) because they import `google.cloud.*`
+> which is not installed in the system python. `local_dev.sh` detects the venv
+> automatically. A seeding failure is non-fatal and won't block the emulators
+> or the ngrok tunnel from starting.
 
 ### Pod Architecture
 
@@ -261,6 +581,7 @@ Ports are published on the pod — defined once, not per-container:
 │  ┌─────────────────────────────────┐    │
 │  │ sm-emulator  (port 8083)        │    │
 │  │ fs-emulator  (port 8085)        │    │
+│  │ ps-emulator  (port 8086)        │    │
 │  │  ↕ localhost (shared namespace) │    │
 │  └─────────────────────────────────┘    │
 └─────────────────────────────────────────┘
@@ -270,18 +591,27 @@ Ports are published on the pod — defined once, not per-container:
 |---|---|---|
 | Secret Manager emulator | `localhost:8083` | `bigbikedata-sm-emulator` |
 | Firestore emulator | `localhost:8085` | `bigbikedata-fs-emulator` |
+| Pub/Sub emulator | `localhost:8086` | `bigbikedata-ps-emulator` |
 | Ngrok tunnel (local target) | `localhost:8081` | `bigbikedata-ngrok` |
 
 ### Ngrok Tunnel (Webhook Testing)
 
-To test Dropbox webhooks locally, expose your local server to the internet via ngrok
-running in a Podman container — no system install needed.
+✅ **Ngrok runs by default** on `./local_dev.sh start`. This is because local
+development uses the **real Dropbox API + real webhook delivery** — Dropbox
+cannot reach `localhost`, so a public tunnel is required for the Dropbox webhook
+to trigger the sync.
 
+- **Default (recommended):** `./local_dev.sh start` starts the tunnel. It needs
+  an ngrok authtoken (from env or KDE Wallet — see below). When it comes up it
+  prints the public URL + Dropbox webhook URL to paste into the Dropbox App
+  console.
+- **Disable (only if you use a Dropbox mock instead of real webhooks):**
+  ```bash
+  NGROK_ENABLED=false ./local_dev.sh start
+  ```
+
+To **start** the tunnel explicitly (emulators already running):
 ```bash
-# Start with tunnel (requires ngrok authtoken)
-NGROK_ENABLED=true ./local_dev.sh start
-
-# Or just the tunnel (emulator already running)
 NGROK_ENABLED=true ./local_dev.sh tunnel
 ```
 
@@ -296,7 +626,7 @@ webhook URL ready to paste into the Dropbox App console:
 ```
 [INFO]  Ngrok tunnel is LIVE
     Public URL:      https://xxxx-xxxx.ngrok-free.dev
-    Dropbox webhook:  https://xxxx-xxxx.ngrok-free.dev/q50WoEoBoHoOoOoK0iBa216SztNO5R6c2vK0tb
+    Dropbox webhook:  https://xxxx-xxxx.ngrok-free.dev/<DROpbox_WEBHOOK_PATH>
 ```
 
 The tunnel is stopped automatically with `./local_dev.sh stop`.
@@ -312,9 +642,16 @@ uv pip install -e .
 
 ### `ModuleNotFoundError: No module named 'googleapiclient'`
 
-Missing Pub/Sub dependency. Install:
+This old error happened because local dev used the HTTPS Pub/Sub client (which
+needs `googleapiclient`). With the Pub/Sub emulator running (and
+`PUBSUB_EMULATOR_HOST` set), local dev now uses the gRPC client against the
+emulator — so `googleapiclient` is no longer required for the local path.
+
+If you still see it, make sure the Pub/Sub emulator is running on the pod and
+that `PUBSUB_EMULATOR_HOST` is in `local_config.json`, then restart:
 ```bash
-uv pip install google-api-python-client
+./local_dev.sh start
+uv pip install -e .
 ```
 
 ### `ImportError: cannot import name 'storage' from 'google.cloud'`
@@ -369,7 +706,7 @@ Seed real tokens: `./local_dev.sh seed`
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/challenge` | GET | Dropbox webhook verification challenge |
-| `/q50WoEoBoHoOoOoK0iBa216SztNO5R6c2vK0tb` | POST | Dropbox webhook (triggers sync) |
+| `/<DROpbox_WEBHOOK_PATH>` | POST | Dropbox webhook (triggers sync) |
 | `/pubsub-processing-handler` | POST | Public user upload processing (Pub/Sub push) |
 | `/private-processing-handler` | POST | Private pipeline processing (Pub/Sub push) |
 | `/<PRIVATE_UPLOAD_TOKEN>` | POST | Manual upload of GCS files to Dropbox |
