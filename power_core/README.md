@@ -615,6 +615,16 @@ To **start** the tunnel explicitly (emulators already running):
 NGROK_ENABLED=true ./local_dev.sh tunnel
 ```
 
+The tunnel logic lives in its own module — **`power_core/ngrok.sh`** — which is
+sourced by `local_dev.sh`. You can also drive it directly:
+```bash
+./ngrok.sh start    # start tunnel (prints public URL + Dropbox webhook)
+./ngrok.sh stop     # stop tunnel
+./ngrok.sh status   # print current public URL if tunnel is up
+```
+`local_dev.sh start` calls `ngrok_tunnel_start`, and `local_dev.sh stop` calls
+`ngrok_tunnel_stop`.
+
 **Prerequisites:**
 - A free [ngrok account](https://dashboard.ngrok.com/signup) and authtoken
 - Store the token in KDE Wallet: `kwallet-query` (the script auto-fetches it)
@@ -630,6 +640,27 @@ webhook URL ready to paste into the Dropbox App console:
 ```
 
 The tunnel is stopped automatically with `./local_dev.sh stop`.
+
+#### Rotating the Webhook Path
+
+If the webhook path (the secret part after `/` in the URL) has been exposed (e.g. in
+git history or logs), you can rotate it **without re-seeding all secrets**:
+
+```bash
+./local_dev.sh rotate-webhook
+```
+
+This single command:
+- Generates a new random `DROpbox_WEBHOOK_PATH`
+- Updates only that one key in the Secret Manager emulator (all other 15+ keys untouched)
+- Prints the old and new values + the new webhook URL ready to paste
+
+It requires the emulator pod to be running (`./local_dev.sh start` or `./ngrok.sh start`
+are sufficient — the pod must be up). If the emulator is already running, it completes
+instantly — no restart needed.
+
+After rotation, paste the new full webhook URL into the Dropbox App console and the old
+path stops working immediately.
 
 ## Troubleshooting
 

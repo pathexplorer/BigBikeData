@@ -14,6 +14,10 @@
 #   ./local_dev.sh stop               # stop emulators
 #   ./local_dev.sh seed               # (re)seed the Secret Manager emulator
 #   ./local_dev.sh env                # print export commands for shell
+#   ./local_dev.sh tunnel             # start only the ngrok tunnel (see ngrok.sh)
+#   ./local_dev.sh rotate-webhook     # generate new DROpbox_WEBHOOK_PATH (preserves all other secrets)
+#
+# Note: ngrok tunnel logic is in ./ngrok.sh (sourced by this script).
 # ---------------------------------------------------------------------------
 set -e
 
@@ -32,8 +36,6 @@ IMAGE_NAME="sm-emulator"
 EMULATOR_HOST="${SECRET_MANAGER_EMULATOR_HOST:-127.0.0.1:8083}"
 SM_PORT="${EMULATOR_HOST##*:}"
 PROJECT_ID="${GCP_PROJECT_ID:-local-test-project}"
-NGROK_CONTAINER_NAME="bigbikedata-ngrok"
-NGROK_LOCAL_PORT="${NGROK_LOCAL_PORT:-8081}"
 POD_NAME="bigbikedata-dev"
 
 # --- Firestore emulator ---
@@ -114,66 +116,11 @@ _ensure_pod() {
 }
 
 # ---------------------------------------------------------------------------
-# Ngrok tunnel helpers
+# Ngrok tunnel helpers (module)
 # ---------------------------------------------------------------------------
-tunnel_start() {
-    # ngrok runs BY DEFAULT because local development uses the REAL Dropbox
-    # API + real webhook delivery — Dropbox cannot reach localhost without a
-    # public tunnel. Disable only if you use a Dropbox mock instead:
-    #   NGROK_ENABLED=false ./local_dev.sh start
-    if [ "${NGROK_ENABLED:-true}" != "true" ]; then
-        log_info "Ngrok tunnel disabled (NGROK_ENABLED=false)."
-        log_info "  This is only appropriate if you use a Dropbox mock instead of real webhooks."
-        return 0
-    fi
-
-    # Auto-detect auth token from env or KDE wallet
-    if [ -z "${NGROK_AUTHTOKEN:-}" ]; then
-        NGROK_AUTHTOKEN="$(kwallet-query -f net -r 'ngrok' kdewallet 2>/dev/null || echo '')"
-    fi
-
-    if [ -z "$NGROK_AUTHTOKEN" ]; then
-        log_error "NGROK_AUTHTOKEN not set and not found in KDE wallet."
-        log_error "  Export it:  export NGROK_AUTHTOKEN=your_token"
-        log_error "  Or store in kwallet:  kwallet-query ..."
-        return 1
-    fi
-
-    # Clean up any old ngrok container
-    podman rm -f "$NGROK_CONTAINER_NAME" 2>/dev/null || true
-
-    log_info "Pulling ngrok image..."
-    podman pull docker.io/ngrok/ngrok:latest
-
-    log_info "Starting ngrok tunnel (localhost:${NGROK_LOCAL_PORT})..."
-    podman run -d --name "$NGROK_CONTAINER_NAME" --network host \
-        -e NGROK_AUTHTOKEN="$NGROK_AUTHTOKEN" \
-        docker.io/ngrok/ngrok http "$NGROK_LOCAL_PORT"
-
-    log_info "Waiting for ngrok to be ready..."
-    sleep 3
-
-    # Extract public URL from ngrok's local API
-    NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | python -c "import sys,json; print(json.load(sys.stdin)['tunnels'][0]['public_url'])" 2>/dev/null || echo "")
-
-    if [ -n "$NGROK_URL" ]; then
-        echo ""
-        log_info "Ngrok tunnel is LIVE"
-        echo "    Public URL:      ${NGROK_URL}"
-        echo "    Dropbox webhook:  ${NGROK_URL}$(_get_webhook_path)"
-        echo ""
-    else
-        log_warn "Could not extract ngrok URL from API. Check: podman logs $NGROK_CONTAINER_NAME"
-    fi
-}
-
-tunnel_stop() {
-    if podman inspect "$NGROK_CONTAINER_NAME" > /dev/null 2>&1; then
-        log_info "Stopping ngrok tunnel..."
-        podman stop "$NGROK_CONTAINER_NAME" 2>/dev/null || true
-        podman rm -f "$NGROK_CONTAINER_NAME" 2>/dev/null || true
-    fi
-}
+# Ngrok is a dedicated module so it can be reused/run independently.
+# source ngrok.sh defines: ngrok_tunnel_start, ngrok_tunnel_stop, ngrok_tunnel_status
+source "$SCRIPT_DIR/ngrok.sh"
 
 # ---------------------------------------------------------------------------
 # Firestore emulator helpers
@@ -457,7 +404,7 @@ cmd_start() {
     # emulators from starting.
     _seed_firestore "$FROM_GCP" || log_warn "Firestore seeding failed (will not block startup)."
 
-    tunnel_start
+    ngrok_tunnel_start
 
     echo ""
     log_info "------------------------------------------------------"
@@ -480,7 +427,7 @@ cmd_start() {
 }
 
 cmd_stop() {
-    tunnel_stop
+    ngrok_tunnel_stop
 
     log_info "Stopping pod '$POD_NAME' (all emulators)..."
     podman pod stop "$POD_NAME" 2>/dev/null || true
@@ -504,6 +451,64 @@ cmd_env() {
     echo "export GCP_PROJECT_ID=${PROJECT_ID}"
 }
 
+cmd_rotate_webhook() {
+    # Update only DROpbox_WEBHOOK_PATH in the Secret Manager emulator.
+    # All other secrets (Dropbox tokens, Strava keys, etc.) are left untouched.
+    # Requires the emulator pod to be running.
+    local emulator_base="http://${EMULATOR_HOST}"
+    local secret_name="${APP_JSON_KEYS:-fullstack-app-json-keys}"
+
+    # Health check
+    if ! curl -sf "${emulator_base}/health" > /dev/null 2>&1; then
+        log_error "Secret Manager emulator is not reachable at ${emulator_base}"
+        log_error "  Start it first:  $0 start"
+        return 1
+    fi
+
+    log_info "Rotating DROpbox_WEBHOOK_PATH (other secrets untouched)..."
+
+    local new_path
+    new_path=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
+    log_info "New path: ${new_path}"
+
+    # Fetch current secret, update the one key, POST new version — all via emulator API
+    "$PYTHON_BIN" -c "
+import json, urllib.request, secrets
+
+base   = '${emulator_base}'
+proj   = '${PROJECT_ID}'
+secret = '${secret_name}'
+new    = '${new_path}'
+
+# fetch current version
+resp = urllib.request.urlopen(f'{base}/v1/projects/{proj}/secrets/{secret}/versions/latest')
+data = json.loads(json.loads(resp.read())['payload']['data'])
+
+old = data.get('DROpbox_WEBHOOK_PATH', '<not set>')
+data['DROpbox_WEBHOOK_PATH'] = new
+
+# push new version
+body = json.dumps({'payload': {'data': json.dumps(data)}}).encode()
+req = urllib.request.Request(
+    f'{base}/v1/projects/{proj}/secrets/{secret}:addVersion',
+    data=body,
+    headers={'Content-Type': 'application/json'},
+)
+result = json.loads(urllib.request.urlopen(req).read())
+
+print(f'OLD: {old}')
+print(f'NEW: {new}')
+print(f'Version: {result[\"version\"]}')
+print(f'Preserved: {len(data)} keys')
+"
+
+    echo ""
+    log_info "Done. Paste this webhook URL into the Dropbox App console:"
+    echo "    https://<ngrok-url>/${new_path}"
+    echo ""
+    log_info "Tip: run './ngrok.sh status' to see your current ngrok URL."
+}
+
 # ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
@@ -521,9 +526,10 @@ case "${1:-start}" in
     stop)   cmd_stop ;;
     seed)   cmd_seed ;;
     env)    cmd_env ;;
-    tunnel) tunnel_start ;;
+    tunnel) ngrok_tunnel_start ;;
+    rotate-webhook) cmd_rotate_webhook ;;
     *)
-        echo "Usage: $0 {start [--from-gcp]|stop|seed|env|tunnel}"
+        echo "Usage: $0 {start [--from-gcp]|stop|seed|env|tunnel|rotate-webhook}"
         exit 1
         ;;
 esac
