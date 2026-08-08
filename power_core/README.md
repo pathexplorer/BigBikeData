@@ -136,6 +136,8 @@ Overrides any of the above + adds local-only PostgreSQL config:
 ```json
 {
   "GCP_PROJECT_ID": "local-test-project",
+  "SECRET_MANAGER_EMULATOR_HOST": "localhost:8083",
+  "FIRESTORE_EMULATOR_HOST": "localhost:8085",
   "APP_JSON_KEYS": "fullstack-app-json-keys",
   "SEC_DROPBOX": "dropbox-secrets",
   "S_ACCOUNT_DROPBOX": "local-dev@placeholder.iam.gserviceaccount.com",
@@ -164,7 +166,7 @@ cd power_core
 uv venv
 uv pip install -e .
 
-# 2. Start emulators (Secret Manager + encrypted volume)
+# 2. Start emulators (Secret Manager + Firestore, inside a podman pod)
 ./local_dev.sh start
 
 # 3. Seed secrets (first time only — creates encrypted volume)
@@ -237,6 +239,38 @@ Secrets are stored in a **gocryptfs-encrypted volume** — never plaintext on di
 ./local_dev.sh seed      # re-seed secrets into a running emulator
 ./local_dev.sh env       # print export commands for your shell (DEPRECATED — local_config.json handles this)
 ```
+
+### Firestore Emulator
+
+The Firestore emulator provides the `config/local/settings/data` document used by
+`InjectConfig` at startup. It runs as a container inside the same podman pod, with
+data persisted in `.emulator_data_fs/` (not encrypted — dev config only).
+
+Seeding happens automatically on first `./local_dev.sh start` via `seed.py`.
+Default values can be customized in `local_config.json` (which takes highest precedence).
+
+### Pod Architecture
+
+All emulators run inside a single **podman pod** (`bigbikedata-dev`).
+Ports are published on the pod — defined once, not per-container:
+
+```
+┌─────────────────────────────────────────┐
+│  Pod: bigbikedata-dev                   │
+│                                         │
+│  ┌─────────────────────────────────┐    │
+│  │ sm-emulator  (port 8083)        │    │
+│  │ fs-emulator  (port 8085)        │    │
+│  │  ↕ localhost (shared namespace) │    │
+│  └─────────────────────────────────┘    │
+└─────────────────────────────────────────┘
+```
+
+| Service | Host port | Container |
+|---|---|---|
+| Secret Manager emulator | `localhost:8083` | `bigbikedata-sm-emulator` |
+| Firestore emulator | `localhost:8085` | `bigbikedata-fs-emulator` |
+| Ngrok tunnel (local target) | `localhost:8081` | `bigbikedata-ngrok` |
 
 ### Ngrok Tunnel (Webhook Testing)
 
@@ -317,7 +351,9 @@ Path bug — `gcp_actions` is a sibling of `BigBikeData`, not a child. All paths
 
 ### Podman port forwarding issues with POST requests
 
-Rootless Podman's pasta networking fails on POST. The fix is `--network host` (used by `local_dev.sh`).
+Rootless Podman's pasta networking can fail on POST with bridge networking.
+The `local_dev.sh` script uses a **pod** for the emulators and `--network host`
+for the ngrok container to avoid this issue.
 
 ### `gocryptfs: command not found`
 

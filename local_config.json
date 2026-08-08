@@ -1,5 +1,12 @@
 {
+  "GCP_PROJECT_ID": "local-test-project",
+  "SECRET_MANAGER_EMULATOR_HOST": "localhost:8083",
+  "FIRESTORE_EMULATOR_HOST": "localhost:8085",
   "DROPBOX_TOPIC_NAME": "dropbox-handler-testing",
   "LOGGING_LEVEL": "DEBUG",
-  "PG_HOST": "localhost"
+  "PG_HOST": "localhost",
+  "APP_JSON_KEYS": "fullstack-app-json-keys",
+  "SEC_DROPBOX": "dropbox-secrets",
+  "S_ACCOUNT_DROPBOX": "local-dev@placeholder.iam.gserviceaccount.com",
+  "S_ACCOUNT_RUN": "local-dev@placeholder.iam.gserviceaccount.com"
 }
