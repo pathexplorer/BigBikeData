@@ -4,7 +4,7 @@ import logging
 from power_core.routes.pubsub_handler import handle_message
 from flask import Blueprint, request, jsonify, Response
 from power_core.dropbox_usage.upload_to_dropbox import upload_custom_files_session
-from power_core.project_env.config import PRIVATE_UPLOAD_TOKEN
+from power_core.project_env.config import PRIVATE_UPLOAD_TOKEN, DROpbox_WEBHOOK_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ bp2 = Blueprint("transfer", __name__)
 bp3 = Blueprint("public_processing", __name__)
 bp_private = Blueprint("private_processing", __name__)
 
-@bp2.route('/q50WoEoBoHoOoOoK0iBa216SztNO5R6c2vK0tb', methods=['POST'])
+@bp2.route(f'/{DROpbox_WEBHOOK_PATH}', methods=['POST'])
 def dropbox_webhook():
     """
     Handles the webhook verification and triggers the sync process.

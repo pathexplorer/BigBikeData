@@ -62,6 +62,7 @@ try:
     EVENTARC_TRIGGER=os.environ.get("EVENTARC_TRIGGER")
     GCP_TOPIC_NAME=os.environ.get("GCP_TOPIC_NAME")
     DROPBOX_TOPIC_NAME=os.environ.get("DROPBOX_TOPIC_NAME")
+    DROpbox_WEBHOOK_PATH=os.environ.get("DROpbox_WEBHOOK_PATH")
     COOKIE_DOMAIN=os.environ.get("COOKIE_DOMAIN")
     # Dropbox and Strava
     SEC_STRAVA=os.environ.get("SEC_STRAVA")
