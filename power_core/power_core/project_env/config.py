@@ -1,7 +1,40 @@
 import os
+import sys
 import logging
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Pre-flight check — fail fast with a clear message if critical vars are unset.
+# This prevents confusing downstream errors like "/secrets/None/versions/latest".
+# ---------------------------------------------------------------------------
+_REQUIRED_ENV_VARS = [
+    ("GCP_PROJECT_ID",       "export GCP_PROJECT_ID=local-test-project  (or ./local_dev.sh env)"),
+    ("APP_JSON_KEYS",        "add to local_config.json"),
+    ("SEC_DROPBOX",          "add to local_config.json"),
+    ("S_ACCOUNT_DROPBOX",    "add to local_config.json"),
+    ("S_ACCOUNT_RUN",        "add to local_config.json"),
+]
+
+_missing = [(name, hint) for name, hint in _REQUIRED_ENV_VARS if not os.environ.get(name)]
+if _missing:
+    lines = []
+    for name, hint in _missing:
+        lines.append(f"  • {name}")
+        lines.append(f"    → {hint}")
+    print(
+        "\n" + "=" * 60 + "\n"
+        "\033[31m❌  MISSING REQUIRED ENVIRONMENT VARIABLES\033[0m\n"
+        + "=" * 60 + "\n"
+        "The following variables must be set before starting the app:\n\n"
+        + "\n".join(lines) +
+        "\n\n💡  Quick fix for local dev:\n"
+        "    1. Add missing vars to BigBikeData/local_config.json\n"
+        "    2. Or run:  source <(./local_dev.sh env)\n"
+        + "=" * 60 + "\n",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 try:
     GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")

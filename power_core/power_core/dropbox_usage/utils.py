@@ -59,6 +59,9 @@ class DropboxAuth:
         """
         signature = request.headers.get('X-Dropbox-Signature')
         dbx_app_secret = self.DROPBOX_APP_SECRET
+        if dbx_app_secret is None:
+            logger.error("DROPBOX_APP_SECRET is not configured — cannot verify webhook signature.")
+            return Response("Forbidden — app secret not configured", status=403)
         if not hmac.compare_digest(signature, hmac.new(dbx_app_secret.encode(), request.data, hashlib.sha256).hexdigest()):
             logger.error("Invalid signature. Request ignored.")
             return Response("Forbidden", status=403)
