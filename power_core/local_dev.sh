@@ -5,6 +5,9 @@
 # ⚠️  Uses bare podman (not compose) due to rootless port-forwarding issues.
 #     See gcp_actions/gcp_actions/emulators/secret_manager/SETUP_ISSUES.md
 #
+# All emulators run inside a single podman *pod* (shared network namespace).
+# Ports are published on the pod — no per-container port management needed.
+#
 # Usage:
 #   ./local_dev.sh start         # starts emulators and seeds them
 #   ./local_dev.sh stop          # stops emulators
@@ -26,9 +29,11 @@ EMULATOR_KEYFILE="$HOME/.config/bigbikedata/emulator.key"
 CONTAINER_NAME="bigbikedata-sm-emulator"
 IMAGE_NAME="sm-emulator"
 EMULATOR_HOST="${SECRET_MANAGER_EMULATOR_HOST:-localhost:8083}"
+SM_PORT="${EMULATOR_HOST##*:}"
 PROJECT_ID="${GCP_PROJECT_ID:-local-test-project}"
 NGROK_CONTAINER_NAME="bigbikedata-ngrok"
 NGROK_LOCAL_PORT="${NGROK_LOCAL_PORT:-8081}"
+POD_NAME="bigbikedata-dev"
 
 # --- Firestore emulator ---
 # Image: google/cloud-sdk:emulators includes the Firestore emulator + Java.
@@ -60,6 +65,29 @@ NC='\033[0m'
 log_info()  { echo -e "${GREEN}[INFO]${NC}  $*"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
+
+# ---------------------------------------------------------------------------
+# Pod helpers
+# ---------------------------------------------------------------------------
+_ensure_pod() {
+    if podman pod exists "$POD_NAME" 2>/dev/null; then
+        local pod_state
+        pod_state=$(podman pod inspect "$POD_NAME" --format '{{.State}}' 2>/dev/null)
+        if [ "$pod_state" = "Running" ]; then
+            log_info "Pod '$POD_NAME' is already running."
+            return 0
+        fi
+        log_info "Removing stopped pod '$POD_NAME'..."
+        podman pod rm -f "$POD_NAME" 2>/dev/null || true
+    fi
+
+    log_info "Creating pod '$POD_NAME' (ports: ${SM_PORT}, ${FS_PORT})..."
+    podman pod create \
+        --name "$POD_NAME" \
+        -p "${SM_PORT}:${SM_PORT}" \
+        -p "${FS_PORT}:${FS_PORT}"
+    log_info "Pod created. Published ports: ${SM_PORT} (Secret Manager), ${FS_PORT} (Firestore)."
+}
 
 # ---------------------------------------------------------------------------
 # Ngrok tunnel helpers
@@ -124,8 +152,8 @@ tunnel_stop() {
 _wait_for_firestore() {
     log_info "Waiting for Firestore emulator on ${FS_HOST} ..."
     for i in $(seq 1 30); do
-        # Firestore emulator is gRPC — check that the port is listening.
-        if ss -tln | grep -q ":${FS_PORT}"; then
+        # The pod publishes the port immediately — check container logs instead.
+        if podman logs "$FS_CONTAINER_NAME" 2>&1 | grep -q "Dev App Server is now running"; then
             log_info "Firestore emulator is ready."
             return 0
         fi
@@ -215,20 +243,24 @@ cmd_start() {
     log_info "Building emulator image..."
     podman build -t "$IMAGE_NAME" "$EMULATOR_DIR"
 
-    # Clean up any old containers
+    # Clean up any old containers and pod
     podman rm -f "$CONTAINER_NAME" 2>/dev/null || true
     podman rm -f "$FS_CONTAINER_NAME" 2>/dev/null || true
+    podman pod rm -f "$POD_NAME" 2>/dev/null || true
 
     # Mount encrypted volume (secrets survive restarts, never plaintext on disk)
     _mount_emulator_data
+
+    # Create pod — all emulator ports are published here (single source of truth)
+    _ensure_pod
 
     # --- Firestore emulator ---
     log_info "Pulling Firestore emulator image (this may take a while on first run)..."
     podman pull "$FS_IMAGE"
 
     mkdir -p "$FS_DATA"
-    log_info "Starting Firestore emulator (host network, data at ${FS_DATA})..."
-    podman run -d --name "$FS_CONTAINER_NAME" --network host \
+    log_info "Starting Firestore emulator (pod: ${POD_NAME}, data at ${FS_DATA})..."
+    podman run -d --name "$FS_CONTAINER_NAME" --pod "$POD_NAME" \
         -v "$FS_DATA:/data:Z" \
         "$FS_IMAGE" \
         gcloud beta emulators firestore start --host-port="0.0.0.0:${FS_PORT}" --data-dir=/data
@@ -236,9 +268,9 @@ cmd_start() {
     _wait_for_firestore
 
     # --- Secret Manager emulator ---
-    log_info "Starting emulator (host network, encrypted volume)..."
-    podman run -d --name "$CONTAINER_NAME" --network host \
-        -e PORT=8083 \
+    log_info "Starting Secret Manager emulator (pod: ${POD_NAME}, encrypted volume)..."
+    podman run -d --name "$CONTAINER_NAME" --pod "$POD_NAME" \
+        -e PORT="${SM_PORT}" \
         -v "$EMULATOR_DATA:/data:Z" \
         "$IMAGE_NAME"
 
@@ -299,13 +331,9 @@ cmd_start() {
 cmd_stop() {
     tunnel_stop
 
-    log_info "Stopping Firestore emulator..."
-    podman stop "$FS_CONTAINER_NAME" 2>/dev/null || true
-    podman rm -f "$FS_CONTAINER_NAME" 2>/dev/null || true
-
-    log_info "Stopping Secret Manager emulator..."
-    podman stop "$CONTAINER_NAME" 2>/dev/null || true
-    podman rm -f "$CONTAINER_NAME" 2>/dev/null || true
+    log_info "Stopping pod '$POD_NAME' (all emulators)..."
+    podman pod stop "$POD_NAME" 2>/dev/null || true
+    podman pod rm -f "$POD_NAME" 2>/dev/null || true
 
     _unmount_emulator_data
 
