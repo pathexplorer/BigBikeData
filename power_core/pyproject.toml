@@ -19,6 +19,7 @@ dependencies = [
     "google-cloud-pubsub",
     "google-cloud-secret-manager",
     "google-api-core",
+    "google-api-python-client",
     "fit2gpx @ git+https://github.com/pathexplorer/fit2gpx.git@first",
     "gpxpy",
     "fitdecode",
