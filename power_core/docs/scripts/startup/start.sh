@@ -1,34 +1,50 @@
 #!/bin/bash
 
 set -e # Stop the script if any command fails
+
+# --- Parse environment argument ---
+ENV_MODE="${1:-prod}"  # Default to prod if not specified
+if [[ "$ENV_MODE" != "prod" && "$ENV_MODE" != "dev" ]]; then
+    echo "🯀 ERROR: Invalid environment '$ENV_MODE'. Use 'prod' or 'dev'."
+    echo "Usage: $0 [prod|dev] [reset]"
+    exit 1
+fi
+
+# Handle "reset" argument (can be second argument)
+if [[ "$2" == "reset" || "$1" == "reset" ]]; then
+    RESET_MODE=true
+else
+    RESET_MODE=false
+fi
+
 # --- load environment file ---
-ENV_FILE="$VIRTUAL_ENV/../keys.env"
+# Use environment-specific keys.env file
+ENV_FILE="$VIRTUAL_ENV/../keys.env.${ENV_MODE}"
 if [ -f "$ENV_FILE" ]; then
-    echo "Loading project environment variables..."
-    # 1. 'set -a' automatically exports all subsequent variables set or modified
+    echo "Loading ${ENV_MODE} environment variables from $ENV_FILE..."
     set -a
-    # 2. 'source' (or '.') reads the file into the current shell.
-    # Variables are loaded safely, handling spaces and special characters.
     source "$ENV_FILE"
-    # 3. 'set +a' disables the automatic export feature
     set +a
 else
-    echo "🯀 ERROR: Environment file not found at $ENV_FILE. Aborting script."
+    echo "🯀 ERROR: Environment file not found at $ENV_FILE."
+    echo "Create it with required variables for ${ENV_MODE} environment."
     exit 1
 fi
 
 # gatekeeper1 start
-STATE_FILE="script_progress.log"
+STATE_FILE="script_progress_${ENV_MODE}.log"
 export STATE_FILE
 touch "$STATE_FILE"
 
 # Handle a "reset" argument to clear the log
-# Run: ./start.sh reset
-if [ "$1" == "reset" ]; then
-    echo "Resetting state file..."
-    > "$STATE_FILE" # This clears the file
+if [ "$RESET_MODE" = true ]; then
+    echo "Resetting state file for ${ENV_MODE}..."
+    > "$STATE_FILE"
 fi
 # gatekeeper1 end
+
+# Export environment mode for use in library functions
+export ENV_MODE
 
 # --- Sourcing Modules (Libraries) ---
 echo "Loading dependencies..."
@@ -104,8 +120,26 @@ REQUIRED_VARS=(
 "ARTIFACT_REGISTRY"
 "GCP_TOPIC_NAME" # todo check after
 "GCP_SUBSCRIPTION_NAME" # todo check after
+"SA_DEPLOYER_EMAIL"
+"GCS_BUILD_BUCKET"
 )
 check_required_variables "${REQUIRED_VARS[@]}"
+
+# Apply environment suffix to service account names and secret names
+if [[ "${ENV_MODE}" == "dev" ]]; then
+    SA_NAME_DROPBOX="${SA_NAME_DROPBOX}-dev"
+    SA_NAME_STRAVA="${SA_NAME_STRAVA}-dev"
+    SA_NAME_RUN="${SA_NAME_RUN}-dev"
+    SEC_DROPBOX="${SEC_DROPBOX}-dev"
+    SEC_STRAVA="${SEC_STRAVA}-dev"
+    ARTIFACT_REGISTRY="${ARTIFACT_REGISTRY}-dev"
+    GCP_TOPIC_NAME="${GCP_TOPIC_NAME}-dev"
+    GCP_SUBSCRIPTION_NAME="${GCP_SUBSCRIPTION_NAME}-dev"
+    CLOUD_RUN_SERVICE="${CLOUD_RUN_SERVICE:-power-core}-dev"
+    CLOUD_RUN_SERVICE_PUB="${CLOUD_RUN_SERVICE_PUB:-site-handler}-dev"
+    SA_DEPLOYER_EMAIL="${SA_DEPLOYER_EMAIL}"
+    GCS_BUILD_BUCKET="${GCS_BUILD_BUCKET}"
+fi
 
 stage_1_CREATE_PROJECT() {
       echo "=== Building GCP Project Name ==="
@@ -166,6 +200,61 @@ stage_4_BUCKET_SETUP() {
 }
 timer_pause
 run_stage "stage_4_BUCKET_SETUP"
+
+stage_4b_PUB_BUCKETS_SETUP() {
+      # Create additional buckets for public pipeline (output and input)
+      echo "=== Building Public Output Bucket Name ==="
+      pub_output_prompts=("Org/App Prefix" "Public" "Output")
+      run_generation_loop \
+          build_resource_name \
+          "Public Output Bucket" \
+          "18" \
+          '${PREFIX_3}' \
+          "${pub_output_prompts[@]}"
+      timer_start
+      GEN_NAME_PUB_OUTPUT_BUCKET="$GENERATED_NAME"
+      export GEN_NAME_PUB_OUTPUT_BUCKET
+      echo "Exported name ${GEN_NAME_PUB_OUTPUT_BUCKET}"
+      check_and_create_bucket "$GEN_NAME_PUB_OUTPUT_BUCKET" "$REGION"
+      append_env_value "GCS_PUB_OUTPUT_BUCKET=${GEN_NAME_PUB_OUTPUT_BUCKET}"
+
+      echo "=== Building Public Input Bucket Name ==="
+      pub_input_prompts=("Org/App Prefix" "Public" "Input")
+      run_generation_loop \
+          build_resource_name \
+          "Public Input Bucket" \
+          "18" \
+          '${PREFIX_3}' \
+          "${pub_input_prompts[@]}"
+      timer_start
+      GEN_NAME_PUB_INPUT_BUCKET="$GENERATED_NAME"
+      export GEN_NAME_PUB_INPUT_BUCKET
+      echo "Exported name ${GEN_NAME_PUB_INPUT_BUCKET}"
+      check_and_create_bucket "$GEN_NAME_PUB_INPUT_BUCKET" "$REGION"
+      append_env_value "GCS_PUB_INPUT_BUCKET=${GEN_NAME_PUB_INPUT_BUCKET}"
+}
+timer_pause
+run_stage "stage_4b_PUB_BUCKETS_SETUP"
+
+stage_4c_BUILD_BUCKET_SETUP() {
+      # Create Cloud Build staging bucket
+      echo "=== Building Cloud Build Staging Bucket Name ==="
+      build_prompts=("Org/App Prefix" "Build" "Staging")
+      run_generation_loop \
+          build_resource_name \
+          "Build Bucket" \
+          "18" \
+          '${PREFIX_3}' \
+          "${build_prompts[@]}"
+      timer_start
+      GEN_NAME_BUILD_BUCKET="$GENERATED_NAME"
+      export GEN_NAME_BUILD_BUCKET
+      echo "Exported name ${GEN_NAME_BUILD_BUCKET}"
+      check_and_create_bucket "$GEN_NAME_BUILD_BUCKET" "$REGION"
+      append_env_value "GCS_BUILD_BUCKET=${GEN_NAME_BUILD_BUCKET}"
+}
+timer_pause
+run_stage "stage_4c_BUILD_BUCKET_SETUP"
 
 stage_5_CREATE_SA() {
       check_and_create_sa "$SA_NAME_DROPBOX" "$SA_EMAIL_1" "Dropbox Service Account"

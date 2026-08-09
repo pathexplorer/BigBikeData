@@ -138,6 +138,11 @@ build_resource_name() {
     built_name=$(IFS=-; echo "${name_parts[*]}")
     built_name="${built_name}-${evaluated_suffix}"
 
+    # Add environment suffix if not prod
+    if [[ -n "${ENV_MODE:-}" && "${ENV_MODE}" != "prod" ]]; then
+        built_name="${built_name}-${ENV_MODE}"
+    fi
+
     # Set the global variable for the loop to use
     GENERATED_NAME="${built_name}"
 

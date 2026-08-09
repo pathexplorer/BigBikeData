@@ -1,6 +1,14 @@
 #!/bin/bash
 set -e
 
+# --- Parse environment argument ---
+ENV_MODE="${1:-prod}"  # Default to prod if not specified
+if [[ "$ENV_MODE" != "prod" && "$ENV_MODE" != "dev" ]]; then
+    echo "🯀 ERROR: Invalid environment '$ENV_MODE'. Use 'prod' or 'dev'."
+    echo "Usage: $0 [prod|dev]"
+    exit 1
+fi
+
 VENV_PATH="../.venv"
 
 # Check if the activation script exists
@@ -16,17 +24,25 @@ else
     exit 1
 fi
 
+# Use environment-specific keys.env file
+ENV_FILE="$VENV_PATH/../keys.env.${ENV_MODE}"
 if [ ! -f "$ENV_FILE" ]; then
     echo "❌ ERROR: Environment file not found at $ENV_FILE. Aborting script."
     exit 1
 fi
 
-
-
-echo "Loading environment variables from $ENV_FILE..."
+echo "Loading ${ENV_MODE} environment variables from $ENV_FILE..."
 set -a
 source "$ENV_FILE"
 set +a
+
+# Apply environment suffix to service names and artifact registry
+if [[ "${ENV_MODE}" == "dev" ]]; then
+    CLOUD_RUN_SERVICE_PUB="${CLOUD_RUN_SERVICE_PUB}-dev"
+    ARTIFACT_REGISTRY="${ARTIFACT_REGISTRY}-dev"
+    GCP_TOPIC_NAME="${GCP_TOPIC_NAME}-dev"
+    S_ACCOUNT_RUN="${S_ACCOUNT_RUN}-dev"
+fi
 
 # --- Branch-specific configuration ---
 BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
@@ -41,6 +57,7 @@ IMAGE_TAG=$BRANCH_NAME
 echo "Branch: $BRANCH_NAME"
 echo "Target Service: $TARGET_SERVICE_NAME"
 echo "Image Tag: $IMAGE_TAG"
+echo "Environment: $ENV_MODE"
 # ------------------------------------
 
 echo "Dynamically building substitutions for Cloud Build..."

@@ -9,8 +9,7 @@
 # Ports are published on the pod — no per-container port management needed.
 #
 # Usage:
-#   ./local_dev.sh start              # start emulators with placeholder config
-#   ./local_dev.sh start --from-gcp   # start emulators + pull real config from GCP
+#   ./local_dev.sh start [--project emulator|dev|prod] [--from-gcp]  # start emulators
 #   ./local_dev.sh stop               # stop emulators
 #   ./local_dev.sh seed               # (re)seed the Secret Manager emulator
 #   ./local_dev.sh env                # print export commands for shell
@@ -23,6 +22,22 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EMULATOR_DIR="$SCRIPT_DIR/../../gcp_actions/gcp_actions/emulators/secret_manager"
+
+# --- Parse project argument ---
+PROJECT_MODE="${1:-emulator}"  # Default to emulator if not specified
+if [[ "$PROJECT_MODE" != "emulator" && "$PROJECT_MODE" != "dev" && "$PROJECT_MODE" != "prod" ]]; then
+    echo "🯀 ERROR: Invalid project mode '$PROJECT_MODE'. Use 'emulator', 'dev', or 'prod'."
+    echo "Usage: $0 start [--project emulator|dev|prod] [--from-gcp]"
+    exit 1
+fi
+
+# Handle --from-gcp flag
+FROM_GCP=""
+for arg in "$@"; do
+    case "$arg" in
+        --from-gcp) FROM_GCP="1" ;;
+    esac
+done
 
 # --- gocryptfs encrypted volume for emulator secrets ---
 # Secrets never touch disk in plaintext.
@@ -318,6 +333,32 @@ _unmount_emulator_data() {
 # Commands
 # ---------------------------------------------------------------------------
 cmd_start() {
+    # Load project-specific configuration
+    case "$PROJECT_MODE" in
+        dev)
+            log_info "Loading dev project configuration..."
+            if [ -f "$SCRIPT_DIR/../../local_config.dev.json" ]; then
+                export $(cat "$SCRIPT_DIR/../../local_config.dev.json" | python -c "import sys, json; d=json.load(sys.stdin); print(' '.join(f'{k}={v}' for k,v in d.items()))")
+            else
+                log_warn "local_config.dev.json not found, using defaults"
+            fi
+            ;;
+        prod)
+            log_info "Loading prod project configuration..."
+            if [ -f "$SCRIPT_DIR/../../local_config.json" ]; then
+                export $(cat "$SCRIPT_DIR/../../local_config.json" | python -c "import sys, json; d=json.load(sys.stdin); print(' '.join(f'{k}={v}' for k,v in d.items()))")
+            else
+                log_warn "local_config.json not found, using defaults"
+            fi
+            ;;
+        emulator|*)
+            log_info "Using emulator configuration (default)..."
+            if [ -f "$SCRIPT_DIR/../../local_config.json" ]; then
+                export $(cat "$SCRIPT_DIR/../../local_config.json" | python -c "import sys, json; d=json.load(sys.stdin); print(' '.join(f'{k}={v}' for k,v in d.items()))")
+            fi
+            ;;
+    esac
+
     log_info "Building emulator image..."
     podman build -t "$IMAGE_NAME" "$EMULATOR_DIR"
 
@@ -514,12 +555,22 @@ print(f'Preserved: {len(data)} keys')
 # ---------------------------------------------------------------------------
 FROM_GCP=""
 SEEDED_SECRETS=""
-# Parse --from-gcp flag (can appear anywhere after 'start')
+PROJECT_MODE="emulator"  # Default
+
+# Parse arguments
 for arg in "$@"; do
     case "$arg" in
         --from-gcp) FROM_GCP="1" ;;
+        --project=*) PROJECT_MODE="${arg#*=}" ;;
+        --project) PROJECT_MODE="$2"; shift ;;
     esac
 done
+
+# Validate project mode
+if [[ "$PROJECT_MODE" != "emulator" && "$PROJECT_MODE" != "dev" && "$PROJECT_MODE" != "prod" ]]; then
+    echo "🯀 ERROR: Invalid project mode '$PROJECT_MODE'. Use 'emulator', 'dev', or 'prod'."
+    exit 1
+fi
 
 case "${1:-start}" in
     start)  cmd_start ;;
@@ -529,7 +580,7 @@ case "${1:-start}" in
     tunnel) ngrok_tunnel_start ;;
     rotate-webhook) cmd_rotate_webhook ;;
     *)
-        echo "Usage: $0 {start [--from-gcp]|stop|seed|env|tunnel|rotate-webhook}"
+        echo "Usage: $0 {start [--project emulator|dev|prod] [--from-gcp]|stop|seed|env|tunnel|rotate-webhook}"
         exit 1
         ;;
 esac

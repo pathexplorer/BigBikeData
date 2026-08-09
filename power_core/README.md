@@ -2,6 +2,18 @@
 
 Internal Flask service that ingests, processes, and enriches cycling activity data (.FIT files). Deployed on Google Cloud Run (private, no public access).
 
+## Three-Tier Architecture
+
+This project supports **three tiers** of development and deployment:
+
+| Tier | Project | Resources | Use Case |
+|------|---------|-----------|----------|
+| **Local** | N/A (emulators) | Podman: Secret Manager, Firestore, Pub/Sub | Daily development, fast iteration, debugging |
+| **Dev** | `bigbikedata-dev` | Real GCP (isolated, test data) | Integration testing, Cloud Run behavior, real webhooks |
+| **Prod** | `bigbikedata` | Real GCP (production data) | Live users, real billing |
+
+**Local development uses emulators by default** (fast, free). The dev GCP project is an *optional* layer for when you need to test real GCP behavior (Cloud Run cold starts, real Pub/Sub ordering, real Secret Manager latency, ngrok webhook delivery).
+
 ## Before You Start
 
 This project depends on the **[gcp_actions](https://github.com/pathexplorer/gcp_actions)** library.
@@ -12,7 +24,8 @@ Both repos must be cloned **side-by-side** in the same parent directory:
 ├── BigBikeData/          ← this repo
 │   ├── power_core/
 │   ├── site_handler/
-│   └── local_config.json ← already exists, pre-configured for local dev
+│   ├── local_config.json      ← emulator config (prod-like)
+│   └── local_config.dev.json  ← dev GCP project config
 └── gcp_actions/          ← library repo (clone separately)
     └── gcp_actions/
 ```
@@ -25,13 +38,13 @@ git clone https://github.com/pathexplorer/gcp_actions.git
 # 2. Verify the layout
 ls BigBikeData/power_core/pyproject.toml   # → must exist
 ls gcp_actions/pyproject.toml              # → must exist
-ls BigBikeData/local_config.json           # → pre-configured for local dev
+ls BigBikeData/local_config.json           # → pre-configured for local dev (emulators)
+ls BigBikeData/local_config.dev.json       # → pre-configured for dev GCP project
 ```
 
 > **Note:** `BigBikeData/local_config.json` already exists in the repo with sane defaults
-> for local development. It is the **local equivalent of Cloud Run environment variables** —
-> the same keys the app reads from the GCP environment in production are set here for local dev.
-> You generally don't need to edit it unless you want to change port numbers or feature flags.
+> for local development (emulators). `local_config.dev.json` is for connecting to the dev GCP project.
+> You generally don't need to edit them unless you want to change port numbers or feature flags.
 
 > 👉 **New here?** Jump straight to [Quick Start](#quick-start-step-by-step) to get the app running.
 > The sections below (Pipeline, Architecture) are reference — come back when you need them.
@@ -78,7 +91,10 @@ The `ActivityProcessingPipeline` class (`workshop/workers.py`) orchestrates the 
 
 ### Private Pipeline
 - Triggered by a Dropbox webhook at a secret verification path (configured via `DROpbox_WEBHOOK_PATH` in secrets)
-- Syncs .FIT files from the Dropbox `/apps/activities` folder
+- Syncs .FIT files from the Dropbox App folder:
+  - **Production**: Uses "bigbikedata-prod" app → `/apps/bigbikedata-prod`
+  - **Development**: Uses "bigbikedata-dev" app → `/apps/bigbikedata-dev`
+- Each environment uses a **separate Dropbox App** with its own credentials
 - Full processing: clean → Strava upload → heatmap → database
 - Uses original filenames
 
@@ -261,7 +277,7 @@ EOF
 Replace with real tokens when you need Dropbox sync, Strava upload, or email sending.
 For the full list of available keys, see the [keys.env template](#keysenv-format--copy-this-template-and-fill-in-your-values) below.
 
-**3. Start emulators:**
+**3. Start emulators (emulator mode — default):**
 ```bash
 # Pull real Firestore config from GCP + seed Secret Manager from keys.env:
 ./local_dev.sh start --from-gcp
@@ -287,7 +303,7 @@ Expected output ends with:
 [INFO]  ------------------------------------------------------
 ```
 
-**3. Verify emulators are working:**
+**4. Verify emulators are working:**
 ```bash
 # Secret Manager — health check
 curl http://localhost:8083/health
@@ -308,16 +324,32 @@ else:
 > 💡 If you ran `./local_dev.sh start --from-gcp` in step 3, the Firestore
 > document should already contain your production keys (not the 6 placeholders).
 
-**4. Run the app:**
+**5. Run the app:**
 ```bash
 .venv/bin/python power_core/main.py
 ```
 
-**5. Stop everything when done:**
+**6. Stop everything when done:**
 ```bash
 ./local_dev.sh stop
 # → stops pod + unmounts encrypted volume
 ```
+
+### Dev GCP Project Integration Testing (Optional)
+
+For integration testing with real GCP services (Cloud Run behavior, real Pub/Sub, real Secret Manager latency):
+
+**Prerequisites:**
+- Dev project `bigbikedata-dev` already provisioned (run `./start.sh dev` in bootstrap script)
+- `gcloud auth application-default login` completed
+- Real dev secrets populated in Secret Manager
+
+**Start local dev connected to dev project:**
+```bash
+./local_dev.sh start --project dev
+```
+
+This uses `local_config.dev.json` which points to the real dev GCP project endpoints instead of emulators.
 
 ### `keys.env` reference
 
@@ -481,11 +513,30 @@ Secrets are stored in a **gocryptfs-encrypted volume** — never plaintext on di
 **Key file:** `~/.config/bigbikedata/emulator.key` — keep this safe. Without it, the encrypted volume is unrecoverable.
 
 ```bash
-./local_dev.sh start     # build image, start container, mount encrypted volume, seed if empty
+./local_dev.sh start [--project emulator|dev|prod] [--from-gcp]  # build image, start container, mount encrypted volume, seed if empty
 ./local_dev.sh stop      # stop container + unmount encrypted volume
 ./local_dev.sh seed      # re-seed secrets into a running emulator
 ./local_dev.sh env       # print export commands for your shell (DEPRECATED — local_config.json handles this)
 ```
+
+### Three-Tier Local Development
+
+The `local_dev.sh` script supports three modes via `--project` flag:
+
+| Mode | Command | Description |
+|------|---------|-------------|
+| **Emulator (default)** | `./local_dev.sh start` | Uses local emulators only (fast, free, no GCP needed) |
+| **Dev GCP Project** | `./local_dev.sh start --project dev` | Connects to real dev GCP project (`bigbikedata-dev`) for integration testing |
+| **Prod GCP Project** | `./local_dev.sh start --project prod` | Connects to real prod GCP project (use with caution!) |
+
+**Emulator mode (default)** — Uses `local_config.json` with emulator hosts. No real GCP resources needed.
+
+**Dev project mode** — Uses `local_config.dev.json` with real dev GCP project endpoints. Requires:
+- `gcloud auth application-default login`
+- Dev project `bigbikedata-dev` already provisioned
+- Real dev secrets in Secret Manager
+
+**Prod project mode** — Uses `local_config.json` with real prod GCP project endpoints. **Use with extreme caution** — this connects to production resources!
 
 ### Firestore Emulator
 
