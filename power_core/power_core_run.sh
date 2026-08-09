@@ -18,11 +18,11 @@
 # =============================================================================
 set -e
 
-# --- Parse environment argument ---
-ENV_MODE="${1:-prod}"  # Default to prod if not specified
-if [[ "$ENV_MODE" != "prod" && "$ENV_MODE" != "dev" ]]; then
-    echo "🯀 ERROR: Invalid environment '$ENV_MODE'. Use 'prod' or 'dev'."
-    echo "Usage: $0 [prod|dev]"
+# --- Parse environment argument (optional, auto-detected from branch if not provided) ---
+ENV_MODE="${1:-auto}"  # Default to auto-detect from branch
+if [[ "$ENV_MODE" != "prod" && "$ENV_MODE" != "dev" && "$ENV_MODE" != "auto" ]]; then
+    echo "🯀 ERROR: Invalid environment '$ENV_MODE'. Use 'prod', 'dev', or 'auto'."
+    echo "Usage: $0 [prod|dev|auto]"
     exit 1
 fi
 
@@ -39,6 +39,18 @@ else
     echo "ERROR: Virtual environment activation script not found." >&2
     # Use an exit code to indicate failure (as per best practice)
     exit 1
+fi
+
+# --- Auto-detect environment from branch ---
+BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+if [[ "$ENV_MODE" == "auto" ]]; then
+    if [[ "$BRANCH_NAME" == "main" || "$BRANCH_NAME" == "master" ]]; then
+        ENV_MODE="prod"
+        echo "🔍 Auto-detected: main/master branch → PROD environment"
+    else
+        ENV_MODE="dev"
+        echo "🔍 Auto-detected: feature branch '$BRANCH_NAME' → DEV environment"
+    fi
 fi
 
 # Use environment-specific keys.env file
@@ -64,9 +76,8 @@ if [[ "${ENV_MODE}" == "dev" ]]; then
 fi
 
 # --- Branch-specific configuration ---
-BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
 SERVICE_SUFFIX=""
-if [ "$BRANCH_NAME" != "master" ]; then
+if [ "$BRANCH_NAME" != "master" ] && [ "$BRANCH_NAME" != "main" ]; then
     SERVICE_SUFFIX="-$BRANCH_NAME" # e.g., -testing
 fi
 

@@ -795,8 +795,35 @@ Seed real tokens: `./local_dev.sh seed`
 
 ## Deployment
 
-Deployed with Google Cloud Build:
+### Auto-detect from Branch (Recommended)
+```bash
+# From main/master branch → deploys to PROD
+./power_core_run.sh
 
+# From feature branch → deploys to DEV
+./power_core_run.sh
+```
+
+### Explicit Environment
+```bash
+# Force production deployment
+./power_core_run.sh prod
+
+# Force development deployment
+./power_core_run.sh dev
+```
+
+### How It Works
+| Branch | Auto-detected Env | Cloud Run Service | Keys File |
+|--------|-------------------|-------------------|-----------|
+| `main` / `master` | `prod` | `power-core` | `keys.env.prod` |
+| `feature/*`, `fix/*`, etc. | `dev` | `power-core-dev` | `keys.env.dev` |
+
+The script auto-detects the environment from the current Git branch:
+- **`main` or `master`** → Production
+- **Any other branch** → Development
+
+Deployed with Google Cloud Build:
 ```bash
 gcloud builds submit --config cloudbuild.yaml
 ```

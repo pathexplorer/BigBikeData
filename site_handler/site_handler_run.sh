@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-# --- Parse environment argument ---
-ENV_MODE="${1:-prod}"  # Default to prod if not specified
-if [[ "$ENV_MODE" != "prod" && "$ENV_MODE" != "dev" ]]; then
-    echo "🯀 ERROR: Invalid environment '$ENV_MODE'. Use 'prod' or 'dev'."
-    echo "Usage: $0 [prod|dev]"
+# --- Parse environment argument (optional, auto-detected from branch if not provided) ---
+ENV_MODE="${1:-auto}"  # Default to auto-detect from branch
+if [[ "$ENV_MODE" != "prod" && "$ENV_MODE" != "dev" && "$ENV_MODE" != "auto" ]]; then
+    echo "🯀 ERROR: Invalid environment '$ENV_MODE'. Use 'prod', 'dev', or 'auto'."
+    echo "Usage: $0 [prod|dev|auto]"
     exit 1
 fi
 
@@ -14,14 +14,23 @@ VENV_PATH="../.venv"
 # Check if the activation script exists
 if [ -f "$VENV_PATH/bin/activate" ]; then
     echo "Activating virtual environment..."
-    # 🛑 Sourcing the activate script loads the necessary environment variables
-    #    including ENV_FILE and all variables from keys.env.
     source "$VENV_PATH/bin/activate"
     echo "Virtual environment activated."
 else
     echo "ERROR: Virtual environment activation script not found." >&2
-    # Use an exit code to indicate failure (as per best practice)
     exit 1
+fi
+
+# --- Auto-detect environment from branch ---
+BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+if [[ "$ENV_MODE" == "auto" ]]; then
+    if [[ "$BRANCH_NAME" == "main" || "$BRANCH_NAME" == "master" ]]; then
+        ENV_MODE="prod"
+        echo "🔍 Auto-detected: main/master branch → PROD environment"
+    else
+        ENV_MODE="dev"
+        echo "🔍 Auto-detected: feature branch '$BRANCH_NAME' → DEV environment"
+    fi
 fi
 
 # Use environment-specific keys.env file
@@ -45,9 +54,8 @@ if [[ "${ENV_MODE}" == "dev" ]]; then
 fi
 
 # --- Branch-specific configuration ---
-BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
 SERVICE_SUFFIX=""
-if [ "$BRANCH_NAME" != "master" ]; then
+if [ "$BRANCH_NAME" != "master" ] && [ "$BRANCH_NAME" != "main" ]; then
     SERVICE_SUFFIX="-$BRANCH_NAME" # e.g., -testing
 fi
 
@@ -142,4 +150,14 @@ set -e
 if [ $BUILD_EXIT_CODE -ne 0 ]; then
     echo "❌ Cloud Build failed."
     exit $BUILD_EXIT_CODE
+fi
+
+# --- Post-deploy: Update Firebase Hosting ---
+if [[ "${ENV_MODE}" == "prod" ]]; then
+    echo "🔥 Deploying to Firebase Hosting (production)..."
+    firebase deploy --only hosting
+elif [[ "${ENV_MODE}" == "dev" ]]; then
+    echo "🔥 Deploying to Firebase Preview Channel (development)..."
+    # Creates a preview channel like: https://bigbikedata--dev-app-rand123.web.app
+    firebase hosting:channel:deploy dev-app --expires 7d
 fi
