@@ -95,25 +95,42 @@ pybabel compile -d translations
 
 ## Deployment
 
-### Production
+### Auto-detect from Branch (Recommended)
 ```bash
-# Cloud Build deploy to production
-./site_handler_run.sh prod
+# From main/master branch → deploys to PROD
+./site_handler_run.sh
 
-# Or deploy Firebase Hosting config
-firebase deploy --only hosting
+# From feature branch → deploys to DEV
+./site_handler_run.sh
 ```
 
-### Development
+### Explicit Environment
 ```bash
-# Cloud Build deploy to dev environment
+# Force production deployment
+./site_handler_run.sh prod
+
+# Force development deployment
 ./site_handler_run.sh dev
 ```
 
-The deployment script accepts an environment argument (`prod` or `dev`) and automatically:
-- Loads the appropriate `keys.env.{prod|dev}` file
-- Applies environment-specific suffixes to service names and resources
-- Deploys to the correct Cloud Run service (`site-handler` or `site-handler-dev`)
+### How It Works
+| Branch | Auto-detected Env | Cloud Run Service | Firebase Config | Keys File |
+|--------|-------------------|-------------------|-----------------|-----------|
+| `main` / `master` | `prod` | `site-handler` | `firebase.json` | `keys.env.prod` |
+| `feature/*`, `fix/*`, etc. | `dev` | `site-handler-dev` | `firebase.dev.json` | `keys.env.dev` |
+
+The script auto-detects the environment from the current Git branch:
+- **`main` or `master`** → Production (Firebase main domain)
+- **Any other branch** → Development (Firebase Preview Channel)
+
+### Firebase Configuration
+
+| Environment | Firebase Config | Cloud Run Service | URL |
+|-------------|-----------------|-------------------|-----|
+| **Production** | `firebase.json` | `site-handler` | `https://app.bigbikedata.com` |
+| **Development** | `firebase.dev.json` | `site-handler-dev` | `https://bigbikedata--dev-app-*.web.app` |
+
+The preview channel URL is printed after deployment. Share it for testing.
 
 ## Routes
 
