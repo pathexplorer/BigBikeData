@@ -28,6 +28,20 @@ check_required_variables() {
     echo "SCRIPT ABORTED: Please set all missing variables and try again."
     exit 1
   fi
-  echo "🮱 All required variables are set."
-  echo "------------------------------------------------"
+echo "🮱 All required variables are set."
+echo "------------------------------------------------"
+}
+
+# Append "KEY=VALUE" to names.env only if the KEY is not already present,
+# preventing duplicate entries when the script is re-run.
+append_env_value() {
+  local key_value="$1"
+  local env_file="${2:-names.env}"
+  local key="${key_value%%=*}"
+  if grep -q "^${key}=" "$env_file" 2>/dev/null; then
+    echo "🮱 $key already recorded in $env_file. Skipping."
+  else
+    echo "$key_value" >> "$env_file"
+    echo "🮱 Recorded $key_value in $env_file."
+  fi
 }

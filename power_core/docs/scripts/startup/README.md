@@ -47,14 +47,15 @@ To restart from scratch (clears progress log):
 | 3     | Config & Project Info | Creates a gcloud configuration, stores project number |
 | 4     | Create Bucket         | Creates a GCS bucket for the project               |
 | 5     | Create Service Accounts | Creates Dropbox, Strava, and Run service accounts |
-| 6     | Bind IAM Roles        | Assigns roles to SAs, compute engine, and user account; grants impersonation and token creator roles |
-| 7     | Create Secrets        | Creates secrets in Secret Manager for Dropbox and Strava |
+| 6     | Create Secrets        | Creates secrets in Secret Manager for Dropbox and Strava (with placeholder values — see below) |
+| 7     | Bind IAM Roles        | Assigns roles to SAs, compute engine, and user account; grants impersonation roles; verifies secret access bindings |
 | 8     | Pub/Sub Setup         | Creates Pub/Sub topic, dead-letter topic, and subscription with DLQ policy |
 | 9     | Artifact Registry     | Creates a Docker repository and configures Docker auth |
 | 11    | JSON Credentials      | Downloads a key file for the Run service account    |
 | 12    | Create Firestore      | Creates a Firestore database in the specified region |
 
 > Stage 10 is omitted intentionally — numbering matches the original deployment plan.
+> Stage 6 (secrets) intentionally runs **before** Stage 7 (IAM binding + verification), because the access verification in Stage 7 reads the secrets and binding roles requires the secrets to already exist. If you have an old `script_progress.log`, remove it (or re-run with `reset`) so the renumbered stages take effect.
 
 ## Progress tracking
 
@@ -66,6 +67,13 @@ A `names.env` file is generated containing:
 - `GCP_PROJECT_ID` — the new project ID
 - `GCP_PROJECT_NUMBER` — the numeric project number
 - `GCP_BUCKET_NAME` — the created bucket name
+
+Entries are appended only once per key, so re-runs do not duplicate them.
+
+## Security notes
+
+- **`keys.env` holds sensitive credentials in plaintext.** It contains the GCP service account key path and the secrets used to provision the Dropbox/Strava API tokens. It is recommended to protect it at rest (e.g., store an encrypted copy with `gpg`/`sops` and decrypt into a temporary file only when running) and to never commit it to version control.
+- **Secrets are created with placeholder values.** Stage 6 stores `secret-data-for-app-1` and `secret-data-for-app-2` as the first secret versions so the project bootstraps end-to-end. After setup, replace them with the real Dropbox/Strava tokens via `gcloud secrets versions add`. This also means the access-binding verification in Stage 7 only proves *IAM access*, not the correctness of the token data.
 
 ## Extending
 

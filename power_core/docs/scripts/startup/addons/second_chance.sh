@@ -25,8 +25,12 @@ run_with_retry() {
 
         echo "      Attempt $attempt of $max_attempts: Running $command_to_run..."
 
+        # Reset the exit code before each attempt so a success on retry is
+        # not masked by the stale non-zero code from a previous failure.
+        last_exit_code=0
+
         # Execute the command/function using its arguments
-        # The '|| true' prevents set -e from killing the script if it fails
+        # The '||' prevents set -e from killing the script if it fails
         "$command_to_run" "${command_args[@]}" || last_exit_code=$?
 
         # Check the exit status

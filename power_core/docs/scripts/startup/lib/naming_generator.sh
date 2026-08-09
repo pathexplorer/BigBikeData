@@ -127,17 +127,13 @@ build_resource_name() {
     # This (presumably) sets the $PREFIX_1, $PREFIX_2, $PREFIX_3 variables
     generate_digits
 
-    # 3. Source the naming file
-    # NOTE: Sourcing inside a loop is unusual. This re-loads the file every time.
-    source ./lib/naming_generator.sh
-
-    # 4. Evaluate the suffix
+    # 3. Evaluate the suffix
     # This safely evaluates the literal string (e.g., '${PREFIX_1}-${PREFIX_2}')
-    # to get the actual values from the sourced file.
+    # to get the actual values from the already-generated variables.
     local evaluated_suffix
     eval "evaluated_suffix=${suffix_literal}"
 
-    # 5. Build the final name
+    # 4. Build the final name
     # Joins all name_parts with a hyphen
     built_name=$(IFS=-; echo "${name_parts[*]}")
     built_name="${built_name}-${evaluated_suffix}"
