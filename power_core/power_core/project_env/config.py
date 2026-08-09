@@ -88,10 +88,11 @@ except KeyError as e:
     raise EnvironmentError(f"Configuration missing from environment: {e}")
 
 LOGGING_LEVEL="DEBUG"
+# Dropbox watched folder - can be overridden per environment (e.g., /apps/activities/prod or /apps/activities/dev)
+DROPBOX_WATCHED_FOLDER = os.environ.get("DROPBOX_WATCHED_FOLDER", "/apps/activities")
 DROPBOX_REDIRECT_URI = "http://localhost:5000/oauth/callback"
 STRAVA_REDIRECT_URI="http://localhost:5000/exchange_token"
 # Pathes
-DROPBOX_WATCHED_FOLDER = "/apps/activities"
 LOCAL_TMP = "/tmp"
 # load heatmap, app route "upload to dropbox"
 DROPBOX_HEATMAP = "heatmap"

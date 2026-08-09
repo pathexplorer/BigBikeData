@@ -2,6 +2,16 @@
 
 Flask web application that lets users upload .FIT cycling activity files for processing. Sits behind Firebase Hosting with domain-based access control. Deployed on Google Cloud Run.
 
+## Three-Tier Architecture
+
+This project supports **three tiers** of development and deployment (shared with `power_core`):
+
+| Tier | Project | Resources | Use Case |
+|------|---------|-----------|----------|
+| **Local** | N/A (emulators) | Podman: Secret Manager, Firestore, Pub/Sub | Daily development, fast iteration, debugging |
+| **Dev** | `bigbikedata-dev` | Real GCP (isolated, test data) | Integration testing, Cloud Run behavior, real webhooks |
+| **Prod** | `bigbikedata` | Real GCP (production data) | Live users, real billing |
+
 ## How It Works
 
 ```
@@ -85,13 +95,25 @@ pybabel compile -d translations
 
 ## Deployment
 
+### Production
 ```bash
-# Cloud Build deploy
-gcloud builds submit --config cloudbuild.yaml
+# Cloud Build deploy to production
+./site_handler_run.sh prod
 
 # Or deploy Firebase Hosting config
 firebase deploy --only hosting
 ```
+
+### Development
+```bash
+# Cloud Build deploy to dev environment
+./site_handler_run.sh dev
+```
+
+The deployment script accepts an environment argument (`prod` or `dev`) and automatically:
+- Loads the appropriate `keys.env.{prod|dev}` file
+- Applies environment-specific suffixes to service names and resources
+- Deploys to the correct Cloud Run service (`site-handler` or `site-handler-dev`)
 
 ## Routes
 
