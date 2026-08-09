@@ -5,7 +5,8 @@ local region=$1
 echo "[i] Checking for existing Firestore database..."
 
 # The 'if' condition will be true if grep finds the string "Listed 0 items."
-if gcloud firestore databases list | grep -q "Listed 0 items."; then
+# gcloud prints this summary to stderr, so both streams must be piped to grep.
+if gcloud firestore databases list 2>&1 | grep -q "Listed 0 items."; then
     # This is the "pass" block
     echo "✓ Check passed: No database found. Ready to create."
 

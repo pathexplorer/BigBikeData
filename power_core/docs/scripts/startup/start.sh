@@ -121,7 +121,7 @@ stage_1_CREATE_PROJECT() {
       GEN_NAME_PROJECT="$GENERATED_NAME"
       export GEN_NAME_PROJECT
       create_gcp_project "$GEN_NAME_PROJECT"
-      echo "GCP_PROJECT_ID=${GEN_NAME_PROJECT}" >> names.env
+      append_env_value "GCP_PROJECT_ID=${GEN_NAME_PROJECT}"
 }
 timer_pause
 run_stage "stage_1_CREATE_PROJECT"
@@ -143,7 +143,7 @@ stage_3_CONF_CREATE() {
       # Reusable universal method
       create_configuration "$GCONFIG_NAME" "$GEN_NAME_PROJECT" "$REGION"
       PROJECT_NUMBER=$(gcloud projects describe "$(gcloud config get-value project)" --format="value(projectNumber)")
-      echo "GCP_PROJECT_NUMBER=${PROJECT_NUMBER}" >> names.env
+      append_env_value "GCP_PROJECT_NUMBER=${PROJECT_NUMBER}"
 }
 run_stage "stage_3_CONF_CREATE"
 
@@ -162,7 +162,7 @@ stage_4_BUCKET_SETUP() {
       export GEN_NAME_BUCKET
       echo "Exported name ${GEN_NAME_BUCKET}"
       check_and_create_bucket "$GEN_NAME_BUCKET" "$REGION"
-      echo "GCP_BUCKET_NAME=${GEN_NAME_BUCKET}" >> names.env
+      append_env_value "GCP_BUCKET_NAME=${GEN_NAME_BUCKET}"
 }
 timer_pause
 run_stage "stage_4_BUCKET_SETUP"
@@ -174,7 +174,13 @@ stage_5_CREATE_SA() {
 }
 run_stage "stage_5_CREATE_SA"
 
-stage_6_BIND_PROJ_ROLE_TO_SA() {
+stage_6_CREATE_SECRETS() {
+    check_and_create_secret "$SEC_DROPBOX" "secret-data-for-app-1" "dropbox"
+    check_and_create_secret "$SEC_STRAVA" "secret-data-for-app-2" "strava"
+}
+run_stage "stage_6_CREATE_SECRETS"
+
+stage_7_BIND_PROJ_ROLE_TO_SA() {
     COMPUTE_ACCOUNT="${GCP_PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
     # Setup main service account
     assign_roles_to_run_service_acc \
@@ -258,13 +264,7 @@ stage_6_BIND_PROJ_ROLE_TO_SA() {
       "$SA_EMAIL_2" \
       "$MY_USER_ACCOUNT"
 }
-run_stage "stage_6_BIND_PROJ_ROLE_TO_SA"
-
-stage_7_SECRETS() {
-    check_and_create_secret "$SEC_DROPBOX" "secret-data-for-app-1" "dropbox"
-    check_and_create_secret "$SEC_STRAVA" "secret-data-for-app-2" "strava"
-}
-run_stage "stage_7_SECRETS"
+run_stage "stage_7_BIND_PROJ_ROLE_TO_SA"
 
 stage_8_PUBSUB_SETUP() {
     echo "=== Setting up Pub/Sub with Dead-Letter Queue ==="

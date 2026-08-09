@@ -27,7 +27,7 @@ ROLES_COMPUTE_ACCOUNT=(
 
 
 
-  echo "   - Checking/Binding $MEMBER to $LEVEL_NAME with $ROLE"
+  echo "   - Checking/Binding $MEMBER to $LEVEL_NAME"
 
   # Unpacking array for possibility use function as argument in other function
   for file in "${ROLES[@]}"; do
