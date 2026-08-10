@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# Dry-run wrapper: prints command instead of executing if DRY_RUN=true
+run_cmd() {
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        echo "🔍 [DRY-RUN] Would execute: $*"
+        return 0
+    else
+        eval "$@"
+    fi
+}
+
 check_required_variables() {
   local var_list=("$@") # Takes all arguments as an array of variable names to check
   local all_good=true
@@ -41,7 +51,11 @@ append_env_value() {
   if grep -q "^${key}=" "$env_file" 2>/dev/null; then
     echo "🮱 $key already recorded in $env_file. Skipping."
   else
-    echo "$key_value" >> "$env_file"
-    echo "🮱 Recorded $key_value in $env_file."
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        echo "🔍 [DRY-RUN] Would record $key_value in $env_file"
+    else
+        echo "$key_value" >> "$env_file"
+        echo "🮱 Recorded $key_value in $env_file."
+    fi
   fi
 }

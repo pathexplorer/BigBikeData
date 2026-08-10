@@ -13,6 +13,13 @@ sa_binding_verif() {
 
     echo "4. Verifying security access bindings..."
 
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        echo "🔍 [DRY-RUN] Would verify security bindings for:"
+        echo "🔍 [DRY-RUN]   - $sa_name_dropbox ($sa_email_1) -> $sec_dropbox (allowed), $sec_strava (denied)"
+        echo "🔍 [DRY-RUN]   - $sa_name_strava ($sa_email_2) -> $sec_dropbox (denied), $sec_strava (allowed)"
+        return 0
+    fi
+
     # --- Helper function to display detailed failure message ---
     # $1: SA Name, $2: Secret Name, $3: Error Message
     handle_failure() {

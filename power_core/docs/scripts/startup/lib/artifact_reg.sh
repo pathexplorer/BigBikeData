@@ -7,6 +7,12 @@ check_and_create_artifact_repo() {
 
   echo "5. Checking/Creating Artifact Registry Repository: $REPO_NAME"
 
+  if [[ "${DRY_RUN:-false}" == "true" ]]; then
+      echo "🔍 [DRY-RUN] Would check if Artifact Registry repository $REPO_NAME exists in $REPO_REGION"
+      echo "🔍 [DRY-RUN] Would create Artifact Registry repository $REPO_NAME in $REPO_REGION"
+      return 0
+  fi
+
   # 1. Check for existence (suppressing all output)
   if gcloud artifacts repositories describe "$REPO_NAME" \
     --location="$REPO_REGION"; then
@@ -17,7 +23,7 @@ check_and_create_artifact_repo() {
 
     # 2. Create the repository
     # We use --async for non-blocking creation, but we check the exit code immediately.
-    if gcloud artifacts repositories create "$REPO_NAME" \
+    if run_cmd gcloud artifacts repositories create "$REPO_NAME" \
       --repository-format="$REPO_FORMAT" \
       --location="$REPO_REGION" \
       --description="$DESCRIPTION" \

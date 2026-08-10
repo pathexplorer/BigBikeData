@@ -19,6 +19,12 @@ create_json_cred() {
   fi
   echo "🔑 1. Checking and creating JSON key for Service Account: $sa_name"
 
+  if [[ "${DRY_RUN:-false}" == "true" ]]; then
+      echo "🔍 [DRY-RUN] Would check if JSON key exists at $creds_dir"
+      echo "🔍 [DRY-RUN] Would create JSON key for service account $sa_name at $creds_dir"
+      return 0
+  fi
+
   # 3. Check if the key file already exists (Idempotency check)
   if [[ -f "$creds_dir" ]]; then
     echo "   File $creds_dir already exists. Skipping key creation."
@@ -27,7 +33,7 @@ create_json_cred() {
 
   # 4. Attempt creation, suppressing gcloud noise
   echo "$creds_dir"
-  if gcloud iam service-accounts keys create "$creds_dir" \
+  if run_cmd gcloud iam service-accounts keys create "$creds_dir" \
     --iam-account="${sa_name}"; then
 
     # 5. Final check for success based on file size

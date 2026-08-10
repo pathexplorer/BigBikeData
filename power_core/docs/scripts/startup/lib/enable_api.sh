@@ -27,6 +27,11 @@ enable_gcp_apis() {
     for API_SERVICE in "${APIS_TO_CHECK[@]}"; do
         echo -n "      Checking status for $API_SERVICE... "
 
+        if [[ "${DRY_RUN:-false}" == "true" ]]; then
+            echo "🔍 [DRY-RUN] Would check/enable $API_SERVICE"
+            continue
+        fi
+
         # Check if the API is already enabled.
         # Use --filter and --format to get a precise, non-changing status.
         # This is an efficient API call (list_enabled_requests quota is 10 QPS).
@@ -43,7 +48,7 @@ enable_gcp_apis() {
             # The enable command is the "expensive" operation (mutate_requests quota is 2 QPS).
             # We use the --async flag to return immediately and not wait for the long-running operation,
             # which improves script stability and speed.
-            if gcloud services enable "$API_SERVICE" $PROJECT_FLAG --async --quiet; then
+            if run_cmd gcloud services enable "$API_SERVICE" $PROJECT_FLAG --async --quiet; then
                 echo "   -> Operation started successfully."
             else
                 # Capture the failure if the command itself fails (e.g., permission denied)

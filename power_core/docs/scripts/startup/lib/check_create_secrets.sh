@@ -6,6 +6,13 @@ check_and_create_secret() {
   echo "------------------------------------------------"
   echo " 0. Checking/Creating secret $secret_name"
   echo "------------------------------------------------"
+  
+  if [[ "${DRY_RUN:-false}" == "true" ]]; then
+      echo "🔍 [DRY-RUN] Would check if secret $secret_name exists"
+      echo "🔍 [DRY-RUN] Would create secret $secret_name with label app=$secret_label"
+      return 0
+  fi
+  
   # Check if the secret already exists (suppress output with &>/dev/null)
   if gcloud secrets describe "$secret_name" &>/dev/null; then
     echo "     Secret $secret_name already exists. Skipping creation."
@@ -13,7 +20,7 @@ check_and_create_secret() {
     echo "     Secret $secret_name not found. Creating..."
 
     # Create the secret with its first version
-    if echo -n "$secret_value" | gcloud secrets create "$secret_name" \
+    if echo -n "$secret_value" | run_cmd gcloud secrets create "$secret_name" \
       --data-file=- \
       --labels=app="$secret_label"; then
       echo "     🮱 Secret $secret_name created successfully."

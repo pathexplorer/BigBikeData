@@ -2,24 +2,53 @@
 
 set -e # Stop the script if any command fails
 
-# --- Parse environment argument ---
-ENV_MODE="${1:-prod}"  # Default to prod if not specified
+# --- Parse arguments ---
+ENV_MODE="prod"
+RESET_MODE=false
+DRY_RUN=false
+
+# Parse all arguments
+for arg in "$@"; do
+    case "$arg" in
+        prod|dev)
+            ENV_MODE="$arg"
+            ;;
+        reset)
+            RESET_MODE=true
+            ;;
+        --dry-run|-n)
+            DRY_RUN=true
+            ;;
+        *)
+            echo "🯀 ERROR: Unknown argument '$arg'"
+            echo "Usage: $0 [prod|dev] [reset] [--dry-run|-n]"
+            exit 1
+            ;;
+    esac
+done
+
 if [[ "$ENV_MODE" != "prod" && "$ENV_MODE" != "dev" ]]; then
     echo "🯀 ERROR: Invalid environment '$ENV_MODE'. Use 'prod' or 'dev'."
-    echo "Usage: $0 [prod|dev] [reset]"
+    echo "Usage: $0 [prod|dev] [reset] [--dry-run|-n]"
     exit 1
 fi
 
-# Handle "reset" argument (can be second argument)
-if [[ "$2" == "reset" || "$1" == "reset" ]]; then
-    RESET_MODE=true
-else
-    RESET_MODE=false
+# Export DRY_RUN for library functions
+export DRY_RUN
+
+if [ "$DRY_RUN" = true ]; then
+    echo "🔍 DRY-RUN MODE: No changes will be made to GCP resources"
+    echo "============================================================"
 fi
 
 # --- load environment file ---
 # Use environment-specific keys.env file
+# First try: parent of virtual env (for repo root)
+# Second try: power_core directory (for power_core subdirectory)
 ENV_FILE="$VIRTUAL_ENV/../keys.env.${ENV_MODE}"
+if [ ! -f "$ENV_FILE" ]; then
+    ENV_FILE="$(dirname "$VIRTUAL_ENV")/keys.env.${ENV_MODE}"
+fi
 if [ -f "$ENV_FILE" ]; then
     echo "Loading ${ENV_MODE} environment variables from $ENV_FILE..."
     set -a
@@ -361,10 +390,18 @@ stage_8_PUBSUB_SETUP() {
     local dlq_topic="${main_topic}-dlq"
     local subscription="$GCP_SUBSCRIPTION_NAME"
 
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        echo "🔍 [DRY-RUN] Would create Pub/Sub topic: $main_topic"
+        echo "🔍 [DRY-RUN] Would create dead-letter topic: $dlq_topic"
+        echo "🔍 [DRY-RUN] Would create subscription: $subscription with DLQ policy"
+        echo "🔍 [DRY-RUN] Would grant Pub/Sub service account permissions for DLQ"
+        return 0
+    fi
+
     # Create the main topic if it doesn't exist
     if ! gcloud pubsub topics describe "$main_topic" &>/dev/null; then
         echo "Creating main Pub/Sub topic: $main_topic"
-        gcloud pubsub topics create "$main_topic"
+        run_cmd gcloud pubsub topics create "$main_topic"
     else
         echo "Main Pub/Sub topic $main_topic already exists."
     fi
@@ -372,7 +409,7 @@ stage_8_PUBSUB_SETUP() {
     # Create the dead-letter topic if it doesn't exist
     if ! gcloud pubsub topics describe "$dlq_topic" &>/dev/null; then
         echo "Creating dead-letter topic: $dlq_topic"
-        gcloud pubsub topics create "$dlq_topic"
+        run_cmd gcloud pubsub topics create "$dlq_topic"
     else
         echo "Dead-letter topic $dlq_topic already exists."
     fi
@@ -380,13 +417,13 @@ stage_8_PUBSUB_SETUP() {
     # Create the main subscription with the dead-letter policy
     if ! gcloud pubsub subscriptions describe "$subscription" &>/dev/null; then
         echo "Creating subscription '$subscription' with DLQ policy..."
-        gcloud pubsub subscriptions create "$subscription" \
+        run_cmd gcloud pubsub subscriptions create "$subscription" \
             --topic="$main_topic" \
             --dead-letter-topic="$dlq_topic" \
             --max-delivery-attempts=5
     else
         echo "Subscription $subscription already exists. Updating with DLQ policy..."
-        gcloud pubsub subscriptions update "$subscription" \
+        run_cmd gcloud pubsub subscriptions update "$subscription" \
             --dead-letter-topic="$dlq_topic" \
             --max-delivery-attempts=5
     fi
@@ -394,7 +431,7 @@ stage_8_PUBSUB_SETUP() {
     # Grant the Pub/Sub service account permission to publish to the DLQ topic
     local pubsub_sa="service-${PROJECT_NUMBER}@gcp-sa-pubsub.iam.gserviceaccount.com"
     echo "Granting Pub/Sub service account permissions for DLQ..."
-    gcloud pubsub topics add-iam-policy-binding "$dlq_topic" \
+    run_cmd gcloud pubsub topics add-iam-policy-binding "$dlq_topic" \
         --member="serviceAccount:$pubsub_sa" \
         --role="roles/pubsub.publisher"
 
@@ -416,14 +453,18 @@ stage_9_CREATE_ART_REG_REPO() {
       DOCKER_HOST="${REGION}-docker.pkg.dev"
       echo "   ➡ Configuring Docker authentication for $DOCKER_HOST"
 
-      # The command should be run interactively to handle potential prompts,
-      # but we suppress informational output for cleanliness.
-      gcloud auth configure-docker "$DOCKER_HOST"
-
-      if [ $? -eq 0 ]; then
-        echo "   🮱 Docker configuration successful."
+      if [[ "${DRY_RUN:-false}" == "true" ]]; then
+          echo "🔍 [DRY-RUN] Would configure Docker auth for $DOCKER_HOST"
       else
-        echo "   🯀 WARNING: Docker configuration failed. You may not be able to push images."
+          # The command should be run interactively to handle potential prompts,
+          # but we suppress informational output for cleanliness.
+          gcloud auth configure-docker "$DOCKER_HOST"
+
+          if [ $? -eq 0 ]; then
+            echo "   🮱 Docker configuration successful."
+          else
+            echo "   🯀 WARNING: Docker configuration failed. You may not be able to push images."
+          fi
       fi
 }
 run_stage "stage_9_CREATE_ART_REG_REPO"
