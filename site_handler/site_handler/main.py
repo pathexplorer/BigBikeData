@@ -11,7 +11,10 @@ run_handle_logs()
 
 # --- 1. Application Startup Logic ---
 try:
-    ic = InjectConfig()
+    # Load APP_JSON_KEYS secret which contains FLASK_SECRET_KEY and other config
+    list_of_secret_env_vars = ["APP_JSON_KEYS"]
+    list_of_sa_env_vars = [None]
+    ic = InjectConfig(list_of_secret_env_vars, list_of_sa_env_vars)
     ic.load_and_inject_config()
     logger.debug("Configuration loaded successfully")
 

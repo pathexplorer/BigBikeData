@@ -1,4 +1,4 @@
-"""Flask SECRET_KEY resolution: environment variable, then local keyring, with hard failure in the cloud."""
+"""Flask SECRET_KEY resolution: environment variable (from APP_JSON_KEYS secret), then local keyring, with hard failure in the cloud."""
 import os
 import logging
 import keyring
@@ -6,11 +6,11 @@ import keyring
 logger = logging.getLogger(__name__)
 
 def set_or_get_app_secret() -> str:
-    """Return the Flask SECRET_KEY: from FLASK_SECRET_KEY, else the local keyring, failing hard in the cloud."""
-    # 1. Prioritize Environment Variable
+    """Return the Flask SECRET_KEY: from FLASK_SECRET_KEY env var (loaded from APP_JSON_KEYS secret), else the local keyring, failing hard in the cloud."""
+    # 1. Prioritize Environment Variable (loaded from APP_JSON_KEYS secret)
     secret_key = os.environ.get('FLASK_SECRET_KEY')
     if secret_key:
-        logger.debug("Loaded FLASK_SECRET_KEY from environment variable.")
+        logger.debug("Loaded FLASK_SECRET_KEY from environment variable (APP_JSON_KEYS secret).")
         return secret_key
 
     # 2. Check for Cloud Environment vs. Local
@@ -19,8 +19,8 @@ def set_or_get_app_secret() -> str:
 
     if is_cloud_environment:
         # In the cloud, the key MUST be in the environment.
-        logger.critical("'FLASK_SECRET_KEY' is not set in the cloud environment.")
-        raise ValueError("FLASK_SECRET_KEY is a mandatory environment variable for cloud deployments.")
+        logger.critical("'FLASK_SECRET_KEY' is not set in the cloud environment. Ensure APP_JSON_KEYS secret contains FLASK_SECRET_KEY.")
+        raise ValueError("FLASK_SECRET_KEY is a mandatory environment variable for cloud deployments. Add it to APP_JSON_KEYS secret.")
 
     # 3. Fallback to Keyring for Local Development
     logger.info("FLASK_SECRET_KEY not in environment. Attempting to use local keyring...")
