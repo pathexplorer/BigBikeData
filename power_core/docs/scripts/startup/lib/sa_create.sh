@@ -8,6 +8,13 @@ check_and_create_sa() {
   echo "------------------------------------------------"
   echo "4. Checking/Creating App Service Accounts: $sa_name"
   echo "------------------------------------------------"
+  
+  if [[ "${DRY_RUN:-false}" == "true" ]]; then
+      echo "🔍 [DRY-RUN] Would check if service account $sa_name exists"
+      echo "🔍 [DRY-RUN] Would create service account $sa_name with display name '$display_name'"
+      return 0
+  fi
+  
   # Check if the Service Account already exists by describing it
   # We suppress all output with &>/dev/null, only checking the exit code
   if gcloud iam service-accounts describe "$sa_email" &>/dev/null; then
@@ -16,7 +23,7 @@ check_and_create_sa() {
     echo "   Service Account $sa_name not found. Creating..."
 
     # Create the Service Account
-    if gcloud iam service-accounts create "$sa_name" \
+    if run_cmd gcloud iam service-accounts create "$sa_name" \
       --display-name="$display_name"; then
       echo "   🮱 Service Account $sa_name created successfully."
     else

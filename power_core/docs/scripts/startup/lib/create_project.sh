@@ -8,6 +8,13 @@ create_gcp_project() {
     # --- 0a. Check for Existence ---
     # This check relies on the gcp_project being defined externally (e.g., in .env)
     
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        echo "🔍 [DRY-RUN] Would check if project $gcp_project exists"
+        echo "🔍 [DRY-RUN] Would create project $gcp_project with billing account $billing_account"
+        echo "🔍 [DRY-RUN] Would link billing account and set project context"
+        return 0
+    fi
+    
     if gcloud projects describe "$gcp_project" &>/dev/null; then
         echo "Project $gcp_project already exists. Proceeding with resource checks."
     else
@@ -22,7 +29,7 @@ create_gcp_project() {
     
         # 2. Attempt Project Creation
         # Use --folder=$FOLDER_ID if applicable, otherwise omit it.
-        if gcloud projects create "$gcp_project" \
+        if run_cmd gcloud projects create "$gcp_project" \
             --name="$gcp_project" \
             --enable-cloud-apis \
             --no-user-output-enabled 2>&1; then
@@ -34,7 +41,7 @@ create_gcp_project() {
     
         # 3. Link Billing Account (Essential step after creation)
         echo "   Linking Billing Account..."
-        if gcloud beta billing projects link "$gcp_project" \
+        if run_cmd gcloud beta billing projects link "$gcp_project" \
             --billing-account="$billing_account" \
             --no-user-output-enabled 2>/dev/null; then
             echo "   🮱 Billing account linked successfully."
@@ -45,7 +52,7 @@ create_gcp_project() {
     
         # 4. Activate the new project configuration context
         echo "   Activating new project context..."
-        gcloud config set project "$gcp_project" 2>/dev/null
+        run_cmd gcloud config set project "$gcp_project" 2>/dev/null
 
         wait_and_counting_sheep "20"
     fi
