@@ -166,7 +166,7 @@ Loaded by `InjectConfig` at startup. Contains all general application configurat
 | `DROPBOX_TOPIC_NAME`, `GCP_TOPIC_NAME` | Pub/Sub topics |
 | `CLOUD_RUN_SERVICE`, `CLOUD_RUN_SERVICE_PUB` | Cloud Run service names |
 | `BREVO_API_KEY`, `SMTP_PASSWORD`, `SMTP_SERVER`, `SMTP_PORT`, `SMTP_USER` | Email (Brevo + SMTP) |
-| `STRAVA_UPLOAD`, `EMAIL_MODE` | Feature toggles |
+| `STRAVA_UPLOAD`, `EMAIL_MODE` | Feature toggles (`STRAVA_UPLOAD=enable`/`disable`; dev uses `disable`) |
 | `EVENTARC_SA`, `EVENTARC_TRIGGER` | Eventarc |
 | `COOKIE_DOMAIN`, `FRONTEND_BASE_URL` | Web config |
 | `PRIVATE_ACCESS_TOKEN`, `PRIVATE_UPLOAD_TOKEN` | Auth tokens |
@@ -395,8 +395,8 @@ SMTP_SERVER=smtp.example.com
 SMTP_PORT=587
 SMTP_USER=your-smtp-user
 
-# Feature toggles:
-STRAVA_UPLOAD=false
+# Feature toggles (`enable`/`disable`):
+STRAVA_UPLOAD=disable
 
 # Optional — web frontend config (only needed for site_handler):
 COOKIE_DOMAIN=localhost
@@ -529,6 +529,20 @@ Secrets are stored in a **gocryptfs-encrypted volume** — never plaintext on di
 ## External Services Setup
 
 This section covers the one-time setup for **Dropbox** and **Strava** — the two external services the pipeline integrates with. These steps are required before the private pipeline can sync files and upload activities.
+
+### External services per environment
+
+External services are **shared across environments** where possible — the rule is *one service account, separate actor per env* (sender / folder / topic), not duplicated infrastructure:
+
+| Service | Env separation | Why |
+|---------|---------------|-----|
+| **Brevo (email)** | Same account + separate `SENDER_EMAIL` per env (dev uses `develop@offteleport.cloud`); optionally a restricted API key for dev | Sender identity isolates reputation; dev must never spam from the prod sender |
+| **SMTP fallback** | Same account, separate mailbox/user per env | Same reasoning as Brevo |
+| **Dropbox** | Separate Dropbox account per env (its own app + Wahoo folder) | Real user data — isolation is required |
+| **Strava** | `STRAVA_UPLOAD=disable` in dev; `enable` in prod | Strava API requires a paid subscription; dev uses no API |
+| **GCP (Firestore, Pub/Sub, GCS)** | Same project family, separate resources per env (already done via naming convention) | Env isolation within one cloud |
+
+The email values live in the `fullstack-app-json-keys` secret (`EMAIL_MODE`, `SENDER_EMAIL`, `BREVO_API_KEY`), so both dev and prod can point at the same Brevo account with different senders.
 
 ### Dropbox Setup
 

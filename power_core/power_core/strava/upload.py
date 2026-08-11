@@ -28,7 +28,7 @@ class StravaUpload:
 
     def _poll_upload_status(self):
         """Poll the upload status until Strava returns the resulting activity id (20s cap)."""
-        upload_id = self._upload_fit_to_strava
+        upload_id = self._upload_fit_to_strava()
 
         url = f"https://www.strava.com/api/v3/uploads/{upload_id}"
         for _ in range(20):  # ~20 second wait
@@ -42,7 +42,7 @@ class StravaUpload:
 
     def upload_activity(self):
         """Upload the activity and attach the bike gear id; returns the updated activity and its id."""
-        activity_id = self._poll_upload_status
+        activity_id = self._poll_upload_status()
         url = f"https://www.strava.com/api/v3/activities/{activity_id}"
         payload = {"gear_id": self.bike_model}
         response = requests.put(url, headers=self.headers, data=payload)

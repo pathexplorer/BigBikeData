@@ -51,6 +51,11 @@ The script reads `keys.env.{prod|dev}` located **next to your virtualenv** — i
 doesn't exist, the Welcome Phase creates/collects it for you. To prefill values, copy the
 templates (`keys.env.prod.template` / `keys.env.dev.template` at the repo root) there.
 
+> **Which variables do I need?** The complete registry is in
+> [`config-manifest.md`](config-manifest.md) — every variable, which layer it
+> lives in (keys.env / names.env / Secret Manager / Firestore), who consumes it,
+> and a step-by-step checklist to build a new environment.
+
 The only variable you truly must set is **`MY_USER_ACCOUNT`**:
 
 | Variable            | Description                            | Default          |
@@ -292,6 +297,128 @@ Entries are appended only once per key, so re-runs do not duplicate them.
   - **JSON keys secret** (`{org}-{env}-{app}-fullstack-app-json-keys`): Add service account JSON keys and other JSON credentials
   This also means the access-binding verification in Stage 7 only proves *IAM access*, not the correctness of the token data.
 - **Development environment**: Use test/placeholder tokens only. Never use production API credentials in the dev project.
+
+## Combined secret reference (`{org}-{env}-{app}-fullstack-app-json-keys`)
+
+After the bootstrap completes, the **JSON keys secret** still holds placeholder data. It must be
+re-filled with the app's runtime configuration before the services work end-to-end. The payload is a
+**flat JSON object**: each key is the name of an environment variable, each value its content. At
+startup, `InjectConfig` (in `gcp_actions`) fetches this secret and injects every key into the
+process environment, so the names below must match exactly what `config.py` and
+`site_config.py` read.
+
+This table is the authoritative key reference — it is mirrored by the Secret Manager emulator seeder
+(`gcp_actions/gcp_actions/emulators/secret_manager/seed.py`, `SECRET_CONFIG_MAP`) and by the full
+[`config-manifest.md`](config-manifest.md) (adds storage layer, consumers, anti-drift checklist).
+
+### How to re-fill the secret
+
+```bash
+# Build the JSON (example for dev — values below explain each field)
+gcloud secrets versions add bigbikedata-dev-power-core-fullstack-app-json-keys \
+    --data-file=payload.json \
+    --project=bigbikedata-dev-power-core
+```
+
+The example values in the table are generated deterministically by the bootstrap naming convention
+(`lib/naming_convention.sh`) and already present in `keys.env.{env}` / `names.env` — copy them from
+there instead of retyping.
+
+### Key reference
+
+| Key | Meaning — what the app does with it | Where the value comes from | Still needed? |
+|-----|--------------------------------------|----------------------------|---------------|
+| `GCP_PROJECT_ID` | Project ID; required to reach Secret Manager/Firestore/GCS | `keys.env.{env}` / `names.env` (`GCP_PROJECT_ID`) | **Yes** — hard-required pre-flight |
+| `APP_JSON_KEYS` | Name of **this** secret (pointer). Set via Cloud Run env, *not* stored inside the payload | `keys.env.{env}` (`APP_JSON_KEYS`) | **Yes** — but as env var, skip the key |
+| `SEC_DROPBOX` | Name of the combined Dropbox+Strava secret (accessor) | `keys.env.{env}` (`SEC_DROPBOX`) | **Yes** — hard-required pre-flight |
+| `S_ACCOUNT_RUN` | Cloud Run service-account email; used for signed-URL impersonation | `bigbikedata-{env}-run@…iam.gserviceaccount.com` (see `S_ACCOUNT_RUN` in `keys.env.{env}`) | **Yes** — signed URLs + pre-flight |
+| `S_ACCOUNT_DROPBOX` | Dropbox SA email; used to read `SEC_DROPBOX` | `bigbikedata-{env}-dropbox@…iam.gserviceaccount.com` | **Yes** — hard-required pre-flight |
+| `GCS_BUCKET_NAME` | Main GCS bucket for downloads | `names.env` `GCP_BUCKET_NAME` | **Yes** — workers + uploads |
+| `GCS_PUB_OUTPUT_BUCKET` | Public output bucket | `names.env` `GCS_PUB_OUTPUT_BUCKET` | **Yes** — workers |
+| `GCP_TOPIC_NAME` | Public pipeline Pub/Sub topic (frontend uploads) | `keys.env.{env}` (`GCP_TOPIC_NAME`) | **Yes** — site_handler publishes |
+| `DROPBOX_TOPIC_NAME` | Private pipeline Pub/Sub topic (Dropbox sync) | `keys.env.{env}` (`DROPBOX_TOPIC_NAME`) | **Yes** — `get_from_dropbox` |
+| `CLOUD_RUN_SERVICE` | Core Cloud Run service name | `keys.env.{env}` (`CLOUD_RUN_SERVICE`) | Optional — read into config only |
+| `CLOUD_RUN_SERVICE_PUB` | Site-handler Cloud Run service name | `keys.env.{env}` (`CLOUD_RUN_SERVICE_PUB`) | Optional — read into config only |
+| `EVENTARC_SA` | Eventarc SA email | `{org}-{env}-eventarc@…iam.gserviceaccount.com` + `wire_pubsub.sh` | Optional — stored for reference |
+| `EVENTARC_TRIGGER` | Eventarc trigger name | `{base}-pubsub-trigger` + `wire_pubsub.sh` | Optional — stored for reference |
+| `EMAIL_MODE` | `brevo` or `local` (SMTP switch) | Choose; dev uses `brevo` | **Yes** — email backend |
+| `BREVO_API_KEY` | Brevo (Sendinblue) API key | Brevo dashboard → **SMTP & API → API keys** | **Yes** (if `EMAIL_MODE=brevo`) |
+| `SENDER_EMAIL` | "From" address for Brevo | Brevo verified sender (dev: `develop@offteleport.cloud`) | **Yes** (brevo) |
+| `SENDER_NAME` | Display name for Brevo sender | Your choice | **Yes** (brevo) |
+| `SMTP_SERVER` | SMTP host (e.g. `smtp.gmail.com`) | Only if using SMTP path | Only if `EMAIL_MODE≠brevo` |
+| `SMTP_PORT` | SMTP port (`587` / `465`) | Same | Only if `EMAIL_MODE≠brevo` |
+| `SMTP_SENDER` | SMTP "From" address | Same | Only if `EMAIL_MODE≠brevo` |
+| `SMTP_USER` | SMTP login | Same | Only if `EMAIL_MODE≠brevo` |
+| `SMTP_PASSWORD` | SMTP password | Same | Only if `EMAIL_MODE≠brevo` |
+| `PRIVATE_UPLOAD_TOKEN` | Secret path segment for the private upload endpoint | `python3 -c "import secrets; print(secrets.token_urlsafe(32))"` | **Yes** — route in `transfer.py` |
+| `DROpbox_WEBHOOK_PATH` | Path of the Dropbox webhook endpoint (note odd casing — keep it) | Random path; rotate with `./local_dev.sh cmd_rotate_webhook` | **Yes** — route in `transfer.py` |
+| `FLASK_SECRET_KEY` | Flask session signing key (site_handler) | `python3 -c "import secrets; print(secrets.token_hex(32))"` | **Yes** — hard-fails if missing in cloud |
+| `FRONTEND_BASE_URL` | Public site URL used for download links | e.g. `https://bigbikedata--dev-app.web.app` / `https://bigbikedata.web.app` | **Yes** — `instruments.py` |
+| `DONATION_HTML_SNIPPET_MONO` | Donation-block HTML from Monobank jar | Monobank jar donate widget generator | **Yes** — rendered donation section |
+| `DONATION_HTML_SNIPPET_PRIVAT` | Donation-block HTML from Privat24 jar | Privat24 jar widget generator | **Yes** — rendered donation section |
+| `STRAVA_UPLOAD` | Strava upload toggle: `enable` / `disable` | Feature flag; **dev = `disable`** (Strava is now paid for API actions) | **Yes** — toggles upload stage |
+| `PRIVATE_ACCESS_TOKEN` | Historic private-upload token | Legacy from old project | **No** — defined in `config.py` but untouched by runtime code |
+| `COOKIE_DOMAIN` | Cookie domain | Legacy | **No** — read into config only, no consumer |
+| `SEC_STRAVA` | Strava secret pointer | Legacy; production path uses `SEC_DROPBOX` | **No** — only a local dev helper (`strava/local`) |
+| `S_ACCOUNT_STRAVA` | Strava SA email | Legacy | **No** — only `strava/local` |
+| `BACKEND_TAG` | Backend image tag | Build-time only (`deploy_utils.sh`) | **No** — not a runtime secret |
+| `FRONTEND_TAG` | Frontend image tag | Build-time only | **No** — not a runtime secret |
+
+> **Legacy naming:** the original project used lowercase `s_email_run`/`s_email_dropbox`
+> keys; current code and the emulator seeder use `S_ACCOUNT_RUN`/`S_ACCOUNT_DROPBOX`. Use the
+> uppercase names. `site_config.py` in `site_handler` still probes `s_email_run`, but the value is
+> supplied by the `S_ACCOUNT_RUN` Cloud Run env var.
+
+### Config that lives in Firestore (non-secret variables)
+
+`InjectConfig` merges three layers (Firestore → local config → Secret Manager, secret wins). Every
+non-secret runtime variable should be stored in the Firestore document
+`config/local/settings/data` (`FirestoreMagic("config", "local/settings/data")`) — **not** in the
+secret — because it is read on **every container start**:
+
+- **Cost**: each Secret Manager access costs money per API call; Firestore reads are far cheaper.
+  Storing frequently-read non-secret values in the secret would multiply Secret Manager billing
+  across every instance start, so only genuinely sensitive values (API keys, tokens, passwords) go
+  into Secret Manager, while the cheap-to-read configuration stays in Firestore.
+- **Runtime access**: the service fetches these variables at boot; pulling them from Firestore (and
+  letting the secret override only what it must) keeps the hot path cheap and non-blocking.
+
+A freshly bootstrapped project creates that document **empty**, so those values silently disappear —
+this is why you see keys "missing" after deploy even though the secret lists them.
+
+> **Do NOT re-seed from the original `voltaic-bridge-477610-h2` project.** Its Firestore doc holds
+> that project's **dev resource values** (bucket names, topic names, etc.), which do not exist in
+> the new project. Populate the new Firestore doc with **this** project's values instead (they are
+> recorded in `keys.env.{env}` / `names.env`).
+
+Seed the new project's Firestore config doc manually (values must match the current project):
+
+1. Create the document with the `{env}`-correct values, for example:
+
+   ```json
+   {
+     "CS_BUCKET_NAME": "bigbikedata-dev-power-core-main-3eea25",
+     "EMAIL_MODE": "brevo",
+     "GCS_PUB_INPUT_BUCKET": "bigbikedata-dev-power-core-input-3eea25",
+     "GCS_PUB_OUTPUT_BUCKET": "bigbikedata-dev-power-core-output-3eea25",
+     "DROPBOX_TOPIC_NAME": "bigbikedata-dev-power-core-dropbox-topic",
+     "LOGGING_LEVEL": "INFO"
+   }
+   ```
+
+2. Upload it (or reuse the helper):
+
+   ```bash
+   FIRESTORE_EMULATOR_HOST= gcloud firestore documents set \
+       "config/local/settings/data" --data=firestore_config.json
+   # or use the seeder with an explicit defaults file for the new project:
+   #   python gcp_actions/gcp_actions/emulators/firestore/seed.py --defaults-file firestore_config.json
+   ```
+
+Default keys that routinely live in the Firestore doc (`seed.py` `DEFAULT_CONFIG`):
+`CS_BUCKET_NAME`, `EMAIL_MODE`, `GCS_PUB_INPUT_BUCKET`, `GCS_PUB_OUTPUT_BUCKET`,
+`DROPBOX_TOPIC_NAME`, `LOGGING_LEVEL`. Never move these into the secret — keep them in Firestore for
+cost reasons.
 
 ## Extending
 
