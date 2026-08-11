@@ -34,13 +34,31 @@ BigBikeData/
 
 ## Deployment
 
+### 1. Infrastructure Provisioning (one-time per environment)
+
+Before deploying services, provision the GCP project and all required resources:
+
+```bash
+cd power_core/docs/scripts/startup
+
+# Provision production environment
+./start.sh prod
+
+# Provision development environment
+./start.sh dev
+```
+
+This creates: GCP project, IAM, Secret Manager, Pub/Sub topics, Artifact Registry, Firestore, GCS buckets, and Service Accounts.
+
+### 2. Service Deployment (per code change)
+
 Both services are deployed via Google Cloud Build:
 
 ```bash
-# Backend
+# Backend (from repo root)
 gcloud builds submit --config power_core/cloudbuild.yaml
 
-# Frontend
+# Frontend (from repo root)
 gcloud builds submit --config site_handler/cloudbuild.yaml
 ```
 

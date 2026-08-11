@@ -115,10 +115,52 @@ source your-venv/bin/activate
 > stdin, the script now **aborts** with a clear error instead of re-printing the table in an infinite loop.
 > Use `--yes` to auto-approve, or feed `Y` on stdin (e.g. `printf 'Y\n' | ./start.sh prod --no-welcome`).
 
+## Cleanup (Optional)
+
+For CI/CD pipelines or failed runs, an optional cleanup script removes all created resources:
+
+```bash
+# Preview what would be deleted (safe)
+./cleanup.sh dev --dry-run
+
+# Interactive cleanup
+./cleanup.sh dev
+
+# Non-interactive (CI/CD)
+./cleanup.sh prod --yes
+```
+
+The cleanup script:
+- Deletes resources in reverse dependency order (subscriptions → topics, IAM bindings → SAs)
+- Preserves the GCP project by default (add `delete_project` call if needed)
+- Uses the same deterministic naming convention — no manual resource names required
+- Idempotent and safe to re-run
+
+## Pre-Flight Validation (Stage V)
+
+Before provisioning, the script runs comprehensive pre-flight checks:
+
+- gcloud version (>= 450.0.0)
+- Required tools: `docker`, `jq`, `openssl`, `sha256sum`
+- Docker daemon accessibility
+- gcloud authentication + Application Default Credentials
+- Network connectivity to Google APIs
+- Billing account availability
+- Organization policy awareness
+- Region availability
+- Project quota limits
+- Prerequisite APIs (Cloud Resource Manager, Service Usage, IAM, Cloud Billing)
+
+Run validation independently:
+```bash
+./start.sh dev --dry-run --no-welcome  # Runs validation in dry-run mode
+```
+
 ## What it does (stages)
 
 | Stage | Name                  | Description                                         |
 |-------|-----------------------|-----------------------------------------------------|
+| V     | **Pre-Flight Validation** | **NEW**: Validates gcloud, tools, auth, billing, quotas, region, APIs before any resource creation |
 | 0     | **Generate Names**    | **NEW**: Generates and displays ALL resource names for approval (single prompt) |
 | 1     | Create Project        | Creates GCP project with auto-generated name       |
 | 2     | Enable APIs           | Enables required GCP APIs (Secret Manager, Compute, Firestore, Cloud Run, Pub/Sub, Eventarc, etc.) — waits until all APIs are fully enabled before continuing |
