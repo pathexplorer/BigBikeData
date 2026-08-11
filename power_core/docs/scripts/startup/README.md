@@ -64,12 +64,18 @@ The only variable you truly must set is **`MY_USER_ACCOUNT`**:
 
 ### Dropbox & Strava Setup (Required for Both Environments)
 
-**Create TWO separate Dropbox Apps** in the [Dropbox Developer Console](https://www.dropbox.com/developers/apps):
+**Create TWO separate Dropbox Apps** in the [Dropbox Developer Console](https://www.dropbox.com/developers/apps). Each environment uses a **separate Dropbox account**:
 
-| Environment | App Name | Folder Path | Purpose |
-|-------------|----------|-------------|---------|
-| Production  | `bigbikedata-prod` | `/apps/bigbikedata-prod` | Real user data |
-| Development | `bigbikedata-dev` | `/apps/bigbikedata-dev` | Test data |
+| Environment | App Name | App's own folder | Watched folder (Wahoo source) | Purpose |
+|-------------|----------|------------------|-------------------------------|---------|
+| Production  | `bigbikedata-prod` | `/apps/bigbikedata-prod` | `/apps/activities` | Real user data |
+| Development | `bigbikedata-dev` | `/apps/bigbikedata-dev` | `/apps/activities` | Test data |
+
+The watched folder `/apps/activities` is created by the Wahoo connection inside each account
+(`Apps` is Dropbox's predefined per-app folder; `activities` is the single folder the user
+renamed after connecting Wahoo). The app must be created as a **Scoped App with Full Dropbox
+access** so it can read files outside its own folder. There must be exactly **one** watched
+folder, and its path can be overridden per environment via `DROPBOX_WATCHED_FOLDER`.
 
 Each app needs:
 1. **App Key** → `DROPBOX_APP_KEY`

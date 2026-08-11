@@ -95,10 +95,13 @@ The `ActivityProcessingPipeline` class (`workshop/workers.py`) orchestrates the 
 
 ### Private Pipeline
 - Triggered by a Dropbox webhook at a secret verification path (configured via `DROpbox_WEBHOOK_PATH` in secrets)
-- Syncs .FIT files from the Dropbox App folder:
-  - **Production**: Uses "bigbikedata-prod" app → `/apps/bigbikedata-prod`
-  - **Development**: Uses "bigbikedata-dev" app → `/apps/bigbikedata-dev`
-- Each environment uses a **separate Dropbox App** with its own credentials
+- Syncs .FIT files from the watched Dropbox folder `/apps/activities`:
+  - **Production**: "bigbikedata-prod" app on its own Dropbox account → `/apps/activities`
+  - **Development**: "bigbikedata-dev" app on its own Dropbox account → `/apps/activities`
+- `Apps` is Dropbox's predefined per-app folder; `activities` is the single folder created by
+  the Wahoo connection (it may be renamed after connecting, but there must be exactly **one**
+  watched folder — overridable via `DROPBOX_WATCHED_FOLDER`)
+- Each environment uses a **separate Dropbox App** on a **separate Dropbox account**, each with its own credentials
 - Full processing: clean → Strava upload → heatmap → database
 - Uses original filenames
 
@@ -522,6 +525,73 @@ Secrets are stored in a **gocryptfs-encrypted volume** — never plaintext on di
 ./local_dev.sh seed      # re-seed secrets into a running emulator
 ./local_dev.sh env       # print export commands for your shell (DEPRECATED — local_config.json handles this)
 ```
+
+## External Services Setup
+
+This section covers the one-time setup for **Dropbox** and **Strava** — the two external services the pipeline integrates with. These steps are required before the private pipeline can sync files and upload activities.
+
+### Dropbox Setup
+
+**1. Create a Dropbox App**
+- Go to [Dropbox App Console](https://www.dropbox.com/developers/apps)
+- Click **Create app** → Choose **Scoped App**
+- **Choose Full Dropbox access** — the watched folder (`/apps/activities`) lives outside the app's own folder `/apps/<app-name>`, so App Folder access would reject reads of it.
+- Set permissions (scopes):
+  - `files.metadata.read`
+  - `files.metadata.write`
+  - `files.content.read`
+  - `files.content.write`
+- **Important**: Use a dedicated Dropbox account for bike files.
+
+**1b. Connect Wahoo (one-time per account)**
+- `Apps` is Dropbox's predefined per-app folder. The Wahoo connection creates a folder inside it; after connecting you may **rename** it (this project uses `activities`), but there must be exactly **one** watched folder.
+- The pipeline watches `DROPBOX_WATCHED_FOLDER`, default `/apps/activities` (`power_core/power_core/project_env/config.py`). If you rename the folder, update this env var in the deployed service.
+- ⚠️ **Renaming a folder with existing files re-triggers a full sync** — Dropbox reports every file as re-added, so the pipeline re-processes and re-uploads them to Strava (duplicates). Do this before loading data.
+
+**2. Get a Refresh Token**
+- Dropbox access tokens expire in 10 days (14400 minutes). You need a **refresh token** to generate new access tokens automatically.
+- In the App Console, generate a refresh token (requires the scopes above).
+- Save the refresh token securely — it will be stored in Google Secret Manager as `DROPBOX_REFRESH_TOKEN`.
+
+**3. Configure Webhook**
+- In the App Console, set the webhook URI to your Cloud Run service URL + the secret path (e.g., `https://power-core-abc123.run.app/<DROPBOX_WEBHOOK_PATH>`).
+- The `DROPBOX_WEBHOOK_PATH` is stored in the `dropbox-secrets` secret and can be rotated via `./local_dev.sh rotate-webhook`.
+
+**4. Local Development with ngrok**
+- Dropbox cannot reach `localhost`. Local dev uses **ngrok** to expose a public tunnel.
+- `./local_dev.sh start` starts ngrok automatically (requires an ngrok authtoken).
+- The script prints the public URL and the full Dropbox webhook URL to paste into the App Console.
+- To test: visit `https://<ngrok-url>/?challenge=test123` → should return `test123` and log "challenge received 123".
+
+### Strava Setup
+
+**1. Create a Strava App**
+- Go to [Strava Developer Console](https://developers.strava.com/)
+- Create an application → note `Client_ID` and `Client_Secret`.
+
+**2. Get Refresh Token (Local)**
+- Add to your local `keys.env`:
+  ```bash
+  STRAVA_CLIENT_ID=your_client_id
+  STRAVA_CLIENT_SECRET=your_client_secret
+  ```
+- Run the token exchange script (located at `power_core/power_core/strava/`):
+  ```bash
+  python get_refresh_token.py
+  ```
+- Visit `http://localhost:5000/exchange_token`, click **Authorize**, then **Authorize** again on Strava.
+- Copy the returned `access_token`, `expires_at`, and `refresh_token`.
+
+**3. Store in Secret Manager**
+- The script creates/updates secrets in Google Secret Manager:
+  - `strava-refresh-token`
+  - `strava-access-token`
+  - `strava-expires-at`
+- These are also consolidated into the `dropbox-secrets` secret (8 keys total) for the app.
+
+> **Note**: If you re-run with different scopes, you get a new refresh token, but previous versions remain valid.
+
+---
 
 ### Three-Tier Local Development
 
