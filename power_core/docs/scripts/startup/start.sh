@@ -150,6 +150,15 @@ load_variables_to_main() {
 load_variables_to_main "lib"
 load_variables_to_main "addons"
 
+# ============================================================
+# STAGE V: Pre-Flight Validation (NEW)
+# ============================================================
+stage_V_PREFLIGHT_VALIDATION() {
+    echo "=== Running Pre-Flight Validation Checks ==="
+    run_preflight_validation "${REGION}"
+}
+run_stage "stage_V_PREFLIGHT_VALIDATION"
+
 # Load previously recorded resource values (names.env) so a resumed run still
 # has GCP_PROJECT_ID/GCP_PROJECT_NUMBER etc. even when the earlier stages that
 # record them (e.g. stage_3) are skipped by the progress log.
