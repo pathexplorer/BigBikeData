@@ -9,6 +9,11 @@ assign_roles_to_run_service_acc() {
 
   echo "   - Checking/Binding $MEMBER to $LEVEL_NAME"
 
+  # LEVEL may be a multi-word command path, e.g. "iam service-accounts".
+  # Split it into words so `gcloud iam service-accounts get-iam-policy` works.
+  local LEVEL_PARTS=()
+  read -r -a LEVEL_PARTS <<< "$LEVEL"
+
   if [[ "${DRY_RUN:-false}" == "true" ]]; then
       echo "🔍 [DRY-RUN] Would check/bind roles for $MEMBER at $LEVEL $LEVEL_NAME:"
       for ROLE in "${ROLES[@]}"; do
@@ -26,17 +31,19 @@ assign_roles_to_run_service_acc() {
 
   for ROLE in "${ROLES[@]}"; do
     MEMBER_WITH_TYPE="$TYPE:$MEMBER"
-    # Use gcloud's internal filter to check existence directly
-    EXISTS=$(gcloud "$LEVEL" get-iam-policy "$LEVEL_NAME" \
+    # Use gcloud's internal filter to check existence directly.
+    # stderr is suppressed: an empty policy triggers a harmless
+    # "filter keys were not present" warning that we don't need to show.
+    EXISTS=$(gcloud "${LEVEL_PARTS[@]}" get-iam-policy "$LEVEL_NAME" \
         --flatten="bindings[]" \
         --filter="bindings.role='$ROLE' AND bindings.members:'$MEMBER_WITH_TYPE'" \
-        --format="value(bindings.role)" | wc -l) # wc -l counts the matching lines
+        --format="value(bindings.role)" 2>/dev/null | wc -l) # wc -l counts the matching lines
 
     if [[ $EXISTS -gt 0 ]]; then
       echo "   🮱 $MEMBER already has $ROLE."
     else
       echo "   ➡ Adding $ROLE for $MEMBER ..."
-      run_cmd gcloud "$LEVEL" add-iam-policy-binding "$LEVEL_NAME" \
+      run_cmd gcloud "${LEVEL_PARTS[@]}" add-iam-policy-binding "$LEVEL_NAME" \
         --member="$MEMBER_WITH_TYPE" \
         --role="$ROLE" \
         --condition=None &>/dev/null

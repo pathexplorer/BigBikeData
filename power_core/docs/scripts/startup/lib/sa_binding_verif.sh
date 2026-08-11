@@ -1,12 +1,13 @@
 #!/bin/bash
 
-# Function to verify two service accounts have access only to their designated secret.
-# Arguments: sa_name_dropbox, sa_name_strava, sec_dropbox, sec_strava, sa_email_1, sa_email_2
+# Function to verify both service accounts have access to the combined
+# Dropbox+Strava secret and are denied access to the fullstack JSON keys secret.
+# Arguments: sa_name_dropbox, sa_name_strava, sec_dropbox, sec_fullstack_json_keys, sa_email_1, sa_email_2
 sa_binding_verif() {
     local sa_name_dropbox="$1"
     local sa_name_strava="$2"
     local sec_dropbox="$3"
-    local sec_strava="$4"
+    local sec_fullstack_json_keys="$4"
     local sa_email_1="$5"
     local sa_email_2="$6"
     local overall_status=0 # 0 means all tests passed
@@ -15,8 +16,8 @@ sa_binding_verif() {
 
     if [[ "${DRY_RUN:-false}" == "true" ]]; then
         echo "🔍 [DRY-RUN] Would verify security bindings for:"
-        echo "🔍 [DRY-RUN]   - $sa_name_dropbox ($sa_email_1) -> $sec_dropbox (allowed), $sec_strava (denied)"
-        echo "🔍 [DRY-RUN]   - $sa_name_strava ($sa_email_2) -> $sec_dropbox (denied), $sec_strava (allowed)"
+        echo "🔍 [DRY-RUN]   - $sa_name_dropbox ($sa_email_1) -> $sec_dropbox (allowed), $sec_fullstack_json_keys (denied)"
+        echo "🔍 [DRY-RUN]   - $sa_name_strava ($sa_email_2) -> $sec_dropbox (allowed), $sec_fullstack_json_keys (denied)"
         return 0
     fi
 
@@ -28,71 +29,45 @@ sa_binding_verif() {
         overall_status=1 # Set failure flag
     }
 
+    # --- Helper to run a single access test ---
+    # $1: SA Name, $2: Secret Name, $3: SA Email
+    # 0 = access expected to succeed, 1 = access expected to be denied
+    access_test() {
+        local sa_name="$1"
+        local secret="$2"
+        local sa_email="$3"
+        local expected=$4
+
+        echo "     - Accessing $secret (REQUIRED if expected=0, FORBIDDEN if expected=1):"
+
+        local output
+        output=$(gcloud secrets versions access latest --secret="$secret" \
+            --impersonate-service-account="$sa_email" 2>&1)
+
+        if [ $? -eq 0 ]; then
+            if [ "$expected" -eq 0 ]; then
+                echo "       ✅ Success. Secret accessed."
+            else
+                handle_failure "$sa_name" "Forbidden access to $secret was GRANTED." "Value: $output"
+            fi
+        else
+            if [ "$expected" -eq 1 ]; then
+                echo "       ✅ Success. Access was correctly denied."
+            else
+                handle_failure "$sa_name" "Required access to $secret was DENIED." "$output"
+            fi
+        fi
+    }
+
     # --- Test Group 1: SA 1 (dropbox-manager) ---
     echo "   Testing permissions for $sa_name_dropbox ($sa_email_1)..."
-
-    # Test 1A: Should SUCCEED (Access is required)
-    # The output (secret value) is captured to stdout/stderr is suppressed.
-    local value_1A
-    value_1A=$(gcloud secrets versions access latest --secret="$sec_dropbox" \
-        --impersonate-service-account="$sa_email_1" 2>&1)
-
-    if [ $? -eq 0 ]; then
-        echo "     - Accessing $sec_dropbox (REQUIRED): ✅ Success. Value captured."
-        # The secret value is now in $value_1A, ready for use if needed.
-    else
-        # SECURITY ERROR: SA 1 failed to access its OWN secret.
-        handle_failure "$sa_name_dropbox" "Required access to $sec_dropbox was DENIED." "$value_1A"
-    fi
-
-
-    # Test 1B: Should BE DENIED (Access is forbidden)
-    echo "     - Accessing $sec_strava (FORBIDDEN):"
-
-    gcloud secrets versions access latest --secret="$sec_strava" \
-        --impersonate-service-account="$sa_email_1" 2>/dev/null
-
-    if [ $? -ne 0 ]; then
-        # SUCCESS: Command returned non-zero (DENIED). This is the expected outcome.
-        echo "       ✅ Success. Access was correctly denied."
-    else
-        # SECURITY VIOLATION: Command returned 0 (GRANTED).
-        local violation_output=$(gcloud secrets versions access latest --secret="$sec_strava" --impersonate-service-account="$sa_email_1")
-        handle_failure "$sa_name_dropbox" "Forbidden access to $sec_strava was GRANTED." "Value: $violation_output"
-    fi
-
+    access_test "$sa_name_dropbox" "$sec_dropbox" "$sa_email_1" 0
+    access_test "$sa_name_dropbox" "$sec_fullstack_json_keys" "$sa_email_1" 1
 
     # --- Test Group 2: SA 2 (strava-manager) ---
     echo "   Testing permissions for $sa_name_strava ($sa_email_2)..."
-
-    # Test 2A: Should BE DENIED (Access is forbidden)
-    echo "     - Accessing $sec_dropbox (FORBIDDEN):"
-
-    gcloud secrets versions access latest --secret="$sec_dropbox" \
-        --impersonate-service-account="$sa_email_2" 2>/dev/null
-
-    if [ $? -ne 0 ]; then
-        # SUCCESS: Command returned non-zero (DENIED). This is the expected outcome.
-        echo "       ✅ Success. Access was correctly denied."
-    else
-        # SECURITY VIOLATION: Command returned 0 (GRANTED).
-        handle_failure "$sa_name_strava" "Forbidden access to $sec_dropbox was GRANTED." "Check permissions on $sec_dropbox."
-    fi
-
-
-    # Test 2B: Should SUCCEED (Access is required)
-    echo "     - Accessing $sec_strava (REQUIRED):"
-
-    local value_2B
-    value_2B=$(gcloud secrets versions access latest --secret="$sec_strava" \
-        --impersonate-service-account="$sa_email_2" 2>&1)
-
-    if [ $? -eq 0 ]; then
-        echo "       ✅ Success. Secret accessed and captured."
-    else
-        # SECURITY ERROR: SA 2 failed to access its OWN secret.
-        handle_failure "$sa_name_strava" "Required access to $sec_strava was DENIED." "$value_2B"
-    fi
+    access_test "$sa_name_strava" "$sec_dropbox" "$sa_email_2" 0
+    access_test "$sa_name_strava" "$sec_fullstack_json_keys" "$sa_email_2" 1
 
     # --- Final Conclusion ---
     if [ $overall_status -eq 0 ]; then

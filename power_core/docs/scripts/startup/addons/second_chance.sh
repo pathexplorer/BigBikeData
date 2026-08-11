@@ -4,8 +4,8 @@
 
 # Base code
 # --- Configuration (Adjustable) ---
-MAX_RETRIES=2 # Initial attempt + 1 retry = 2 total tries
-RETRY_DELAY=20 # Wait 10 seconds between attempts
+MAX_RETRIES=3 # Initial attempt + 2 retries = 3 total tries
+RETRY_DELAY=30 # Wait 30 seconds between attempts
 
 # --- The Retry Mechanism Function ---
 # Arguments: Command_Name, Arg1, Arg2, ...

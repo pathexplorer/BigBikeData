@@ -13,13 +13,7 @@ timer_start() {
     # Check if the timer is already running (START_EPOCH != 0)
     if [ "$TIMER_START_EPOCH" -eq 0 ]; then
         # Record the current time in seconds since epoch
-        # The 'export' is a good practice but is not strictly necessary here
-        # since it's already a global, non-local variable.
         TIMER_START_EPOCH=$(date +%s)
-        echo "DEBUG: Timer Started at UTC $TIMER_START_EPOCH" &>/dev/null
-    else
-        # This handles cases where timer_start might be accidentally called twice
-        echo "DEBUG: Timer already running. Start UTC time: $TIMER_START_EPOCH. New Total: $TIMER_TOTAL_SECONDS"
     fi
 }
 
@@ -35,10 +29,6 @@ timer_pause() {
         TIMER_TOTAL_SECONDS=$((TIMER_TOTAL_SECONDS + elapsed_seconds))
         # 4. Reset the start time to 0 to signal the timer is paused/stopped
         TIMER_START_EPOCH=0
-        echo "DEBUG: Timer Paused. Added $elapsed_seconds seconds. New Total: $TIMER_TOTAL_SECONDS"
-    else
-        # If START_EPOCH is 0, it means the timer is already paused or was never started.
-        echo "DEBUG: Timer already Paused. Added 0 seconds. New Total: $TIMER_TOTAL_SECONDS"
     fi
 }
 

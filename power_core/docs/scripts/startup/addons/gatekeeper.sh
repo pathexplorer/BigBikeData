@@ -22,9 +22,13 @@ run_stage() {
         #local exit_code=$?
 
         if [ $exit_code -eq 0 ]; then
-            # If success (code 0), log it and continue
-            echo "🮱 Stage '$stage_name' finished successfully. Logging."
-            echo "$stage_name" >> "$STATE_FILE"
+            if [[ "${DRY_RUN:-false}" == "true" ]]; then
+                echo "🮱 Stage '$stage_name' finished successfully (dry-run — NOT recorded)."
+            else
+                # If success (code 0), log it and continue
+                echo "🮱 Stage '$stage_name' finished successfully. Logging."
+                echo "$stage_name" >> "$STATE_FILE"
+            fi
         else
             # If failure (any non-zero code), stop the script
             echo "🯀 ERROR: Stage '$stage_name' failed with exit code $exit_code. Stopping."

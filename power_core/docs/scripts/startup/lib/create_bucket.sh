@@ -16,13 +16,13 @@ check_and_create_bucket() {
       return 0
   fi
   
-  if gsutil ls -b "$gs_uri" &>/dev/null; then
+  if gcloud storage buckets describe "$gs_uri" &>/dev/null; then
     echo "     Bucket $bucket_name already exists. Skipping creation."
   else
     echo "     Bucket not found. Creating..."
 
-    # Create the bucket
-    if run_cmd gsutil mb -l "$region" "$gs_uri"; then
+    # Create the bucket (gcloud storage CLI is the recommended successor to gsutil)
+    if run_cmd gcloud storage buckets create "$gs_uri" --location="$region"; then
       echo "     Bucket created successfully."
     else
       echo "     ERROR: Failed to create Bucket $bucket_name. Exiting."

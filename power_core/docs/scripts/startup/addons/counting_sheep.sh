@@ -6,6 +6,7 @@ wait_and_counting_sheep() {
       
       if [[ "${DRY_RUN:-false}" == "true" ]]; then
           echo "🔍 [DRY-RUN] Would wait ${total_time} seconds (skipping in dry-run mode)"
+          timer_start # resume the timer in dry-run too
           return 0
       fi
       

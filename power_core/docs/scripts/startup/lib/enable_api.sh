@@ -57,6 +57,51 @@ enable_gcp_apis() {
             fi
         fi
     done
+
+    # Wait until every requested API reports ENABLED before returning. Without
+    # this, later stages can trigger gcloud's interactive
+    # "API [x] not enabled. Would you like to enable and retry?" prompt
+    # (e.g. when 'gcloud config set compute/region' validates the region).
+    if [[ "${DRY_RUN:-false}" != "true" ]]; then
+        wait_for_apis "$PROJECT_ID" "${APIS_TO_CHECK[@]}"
+    fi
+}
+
+# Wait (poll) until all requested APIs report ENABLED state.
+# Usage: wait_for_apis <project_id> <api1> <api2> ...
+wait_for_apis() {
+    local project_id="$1"
+    shift 1
+    local apis=("$@")
+    local max_wait=600
+    local waited=0
+
+    echo "      Waiting for ${#apis[@]} API(s) to be fully enabled..."
+
+    while (( waited < max_wait )); do
+        local all_enabled=true
+        for api in "${apis[@]}"; do
+            local status
+            status=$(gcloud services list --project "$project_id" \
+                --filter="NAME:($api)" \
+                --format="value(STATE)" 2>/dev/null)
+            if [[ "$status" != "ENABLED" ]]; then
+                all_enabled=false
+                break
+            fi
+        done
+
+        if $all_enabled; then
+            echo "      All APIs enabled."
+            return 0
+        fi
+
+        sleep 10
+        waited=$((waited + 10))
+    done
+
+    echo "      WARNING: Timed out after ${max_wait}s waiting for APIs to enable." >&2
+    return 1
 }
 
 

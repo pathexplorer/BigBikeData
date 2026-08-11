@@ -1,12 +1,14 @@
 #!/bin/bash
 
-# Dry-run wrapper: prints command instead of executing if DRY_RUN=true
+# Dry-run wrapper: prints command instead of executing if DRY_RUN=true.
+# Executes via "$@" (NOT eval) so arguments with spaces, e.g.
+# --display-name="Dropbox Service Account", are preserved verbatim.
 run_cmd() {
     if [[ "${DRY_RUN:-false}" == "true" ]]; then
         echo "🔍 [DRY-RUN] Would execute: $*"
         return 0
     else
-        eval "$@"
+        "$@"
     fi
 }
 
