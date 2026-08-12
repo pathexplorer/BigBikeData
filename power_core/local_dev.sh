@@ -23,14 +23,6 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EMULATOR_DIR="$SCRIPT_DIR/../../gcp_actions/gcp_actions/emulators/secret_manager"
 
-# --- Parse project argument ---
-PROJECT_MODE="${1:-emulator}"  # Default to emulator if not specified
-if [[ "$PROJECT_MODE" != "emulator" && "$PROJECT_MODE" != "dev" && "$PROJECT_MODE" != "prod" ]]; then
-    echo "🯀 ERROR: Invalid project mode '$PROJECT_MODE'. Use 'emulator', 'dev', or 'prod'."
-    echo "Usage: $0 start [--project emulator|dev|prod] [--from-gcp]"
-    exit 1
-fi
-
 # Handle --from-gcp flag
 FROM_GCP=""
 for arg in "$@"; do
@@ -557,12 +549,28 @@ FROM_GCP=""
 SEEDED_SECRETS=""
 PROJECT_MODE="emulator"  # Default
 
-# Parse arguments
+# Parse arguments after the command name.
+args=()
 for arg in "$@"; do
-    case "$arg" in
-        --from-gcp) FROM_GCP="1" ;;
-        --project=*) PROJECT_MODE="${arg#*=}" ;;
-        --project) PROJECT_MODE="$2"; shift ;;
+    args+=("$arg")
+done
+
+for ((i = 1; i < ${#args[@]}; i++)); do
+    case "${args[$i]}" in
+        --from-gcp)
+            FROM_GCP="1"
+            ;;
+        --project=*)
+            PROJECT_MODE="${args[$i]#*=}"
+            ;;
+        --project)
+            if ((i + 1 >= ${#args[@]})); then
+                echo "ERROR: --project requires emulator, dev, or prod."
+                exit 1
+            fi
+            PROJECT_MODE="${args[$((i + 1))]}"
+            ((i++))
+            ;;
     esac
 done
 

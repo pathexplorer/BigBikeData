@@ -232,6 +232,7 @@ stage_0_GENERATE_NAMES() {
 # This guarantees skipped stages (e.g. on resume after a reset) still see the
 # GEN_NAME_*, SA_*, SEC_* variables, which would otherwise be empty.
 generate_and_export_names "${ENV_MODE}" "${ORG_PREFIX}" "${APP_NAME}"
+persist_generated_names "$NAMES_ENV_FILE"
 run_stage "stage_0_GENERATE_NAMES"
 
 # Start timing the actual provisioning work. Stage 0's interactive name

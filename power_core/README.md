@@ -155,36 +155,15 @@ Configuration comes from **three sources**, loaded in this order (later wins):
 
 **The 4 pointer vars are the only env vars set directly.** They tell the app *which* secrets to fetch. Everything else — all 36+ config values and credentials — lives inside the two Secret Manager secrets.
 
-### Secret: `fullstack-app-json-keys` (28 keys)
+### Secret payloads
 
-Loaded by `InjectConfig` at startup. Contains all general application configuration:
-
-| Key | Category |
-|-----|----------|
-| `GCP_PROJECT_ID` | Project identity |
-| `GCS_BUCKET_NAME`, `GCS_PUB_OUTPUT_BUCKET` | Storage buckets |
-| `DROPBOX_TOPIC_NAME`, `GCP_TOPIC_NAME` | Pub/Sub topics |
-| `CLOUD_RUN_SERVICE`, `CLOUD_RUN_SERVICE_PUB` | Cloud Run service names |
-| `BREVO_API_KEY`, `SMTP_PASSWORD`, `SMTP_SERVER`, `SMTP_PORT`, `SMTP_USER` | Email (Brevo + SMTP) |
-| `STRAVA_UPLOAD`, `EMAIL_MODE` | Feature toggles (`STRAVA_UPLOAD=enable`/`disable`; dev uses `disable`) |
-| `EVENTARC_SA`, `EVENTARC_TRIGGER` | Eventarc |
-| `COOKIE_DOMAIN`, `FRONTEND_BASE_URL` | Web config |
-| `PRIVATE_ACCESS_TOKEN`, `PRIVATE_UPLOAD_TOKEN` | Auth tokens |
-| `S_ACCOUNT_RUN`, `S_ACCOUNT_DROPBOX` | Service account emails |
-| `SEC_DROPBOX` | Pointer to Dropbox/Strava secret |
-| `FLASK_SECRET_KEY` | Flask session signing |
-| `BACKEND_TAG`, `FRONTEND_TAG` | Version tracking |
-| `DONATION_HTML_SNIPPET_MONO`, `DONATION_HTML_SNIPPET_PRIVAT` | Donation UI |
-
-### Secret: `dropbox-secrets` (8 keys)
-
-Loaded by `DropboxAuth` on first webhook request. Contains OAuth tokens:
-
-| Key | Note |
-|-----|------|
-| `DROPBOX_APP_KEY`, `DROPBOX_APP_SECRET`, `DROPBOX_REFRESH_TOKEN` | Dropbox OAuth |
-| `STRAVA_APP_ID`, `STRAVA_CLIENT_SECRET` | Strava OAuth |
-| `STRAVA_REFRESH_TOKEN`, `STRAVA_ACCESS_TOKEN`, `EXPIRES_AT` | Strava tokens (refreshed at runtime) |
+The JSON-keys secret (`fullstack-app-json-keys`) holds all general app
+configuration; the combined secret (`dropbox-secrets` via `SEC_DROPBOX`) holds
+the Dropbox/Strava OAuth tokens. The **per-key definition** of what goes into
+each payload — every variable, its storage layer, who reads it, and whether it
+is required — is the single source of truth in the
+**[config manifest](docs/scripts/startup/config-manifest.md)**; it is not
+duplicated here.
 
 ### `local_config.json` (local dev only)
 
@@ -236,15 +215,14 @@ gocryptfs -version 2>/dev/null || echo "NOT INSTALLED"
 # 5. Ports must be free
 ss -tln | grep -E '808[1356]' && echo "⚠️  Port conflict!" || echo "✅ Ports 8081,8083,8085,8086 are free"
 
-# 6. GCP project with required services enabled
-#    (Firestore, Secret Manager, Cloud Storage, Pub/Sub)
+# 6. GCP project (only required for --from-gcp, --project dev/prod, or deployment)
 gcloud config get-value project
-# → your-project-id  (must be set)
+# → your-project-id  (must be set for GCP-backed modes)
 
 # 7. Java JRE 21 (only needed for FIT→CSV conversion)
 java -version 2>&1 | head -1
 
-# 8. ngrok authtoken (required — real Dropbox webhooks are used in local dev)
+# 8. ngrok authtoken (required for real Dropbox webhook testing)
 #    Either set it in env, or store it in KDE Wallet under key 'ngrok':
 #    export NGROK_AUTHTOKEN=your_token
 ```
@@ -273,7 +251,7 @@ emulator with it. Create it **before** starting the emulators:
 
 ```bash
 # Minimal — just enough to start (dummy values):
-cat > power_core/power_core/project_env/keys.env << 'EOF'
+cat > power_core/project_env/keys.env << 'EOF'
 GCP_PROJECT_ID=local-test-project
 FLASK_SECRET_KEY=dev-secret-key
 S_ACCOUNT_RUN=local-dev@placeholder.iam.gserviceaccount.com
@@ -284,17 +262,31 @@ EOF
 Replace with real tokens when you need Dropbox sync, Strava upload, or email sending.
 For the full list of available keys, see the [keys.env template](#keysenv-format--copy-this-template-and-fill-in-your-values) below.
 
-**3. Start emulators (emulator mode — default):**
+**3. Start local emulators (default):**
 ```bash
-# Pull real Firestore config from GCP + seed Secret Manager from keys.env:
-./local_dev.sh start --from-gcp
+./local_dev.sh start
 ```
 One command does everything:
 - Builds & starts the emulator containers (Secret Manager on :8083, Firestore on :8085, Pub/Sub on :8086)
 - Mounts the encrypted volume for secrets
 - Starts the **ngrok tunnel** (default) so Dropbox can deliver real webhooks
-- `--from-gcp`: pulls `config/local/settings/data` from your real GCP Firestore
 - Auto-seeds Secret Manager from `keys.env` (if found)
+
+This default mode does not read Firestore or Secret Manager from GCP. It still is
+not a fully offline application environment: Dropbox is real, ngrok is real, and
+Cloud Storage is real GCP when a pipeline stage uploads or downloads an object.
+
+To seed the local Firestore emulator from an existing GCP project instead, use
+the optional hybrid mode:
+
+```bash
+gcloud auth application-default login
+./local_dev.sh start --from-gcp
+```
+
+In hybrid mode, only the initial Firestore configuration is read from GCP; the
+application continues to use the local Secret Manager, Firestore, and Pub/Sub
+emulators for those services.
 
 Expected output ends with:
 ```
@@ -328,8 +320,8 @@ else:
 "
 ```
 
-> 💡 If you ran `./local_dev.sh start --from-gcp` in step 3, the Firestore
-> document should already contain your production keys (not the 6 placeholders).
+> If you ran `./local_dev.sh start --from-gcp`, the Firestore document is copied
+> from the selected GCP project. Otherwise it contains local placeholder defaults.
 
 **5. Run the app:**
 ```bash
@@ -366,75 +358,12 @@ If you need to re-seed or add real tokens later:
 ./local_dev.sh seed
 ```
 
-**Full `keys.env` template** (all keys, for reference):
-```bash
-# ============================================================
-# Secret: fullstack-app-json-keys  (general app configuration)
-# ============================================================
-
-# Required for the app to start:
-GCP_PROJECT_ID=local-test-project
-FLASK_SECRET_KEY=any-random-string-here
-S_ACCOUNT_RUN=local-dev@placeholder.iam.gserviceaccount.com
-S_ACCOUNT_DROPBOX=local-dev@placeholder.iam.gserviceaccount.com
-
-# Required for the private pipeline (Dropbox + Strava):
-SEC_DROPBOX=dropbox-secrets
-GCS_BUCKET_NAME=your-bucket-name
-DROPBOX_TOPIC_NAME=dropbox-handler-testing
-GCP_TOPIC_NAME=pubsub-topic-name
-CLOUD_RUN_SERVICE=power-core
-CLOUD_RUN_SERVICE_PUB=power-core-public
-
-# Email (Brevo or SMTP) — needed to send results to users:
-EMAIL_MODE=brevo
-BREVO_API_KEY=your-brevo-api-key
-SMTP_PASSWORD=your-smtp-password
-SMTP_SENDER=sender@example.com
-SMTP_SERVER=smtp.example.com
-SMTP_PORT=587
-SMTP_USER=your-smtp-user
-
-# Feature toggles (`enable`/`disable`):
-STRAVA_UPLOAD=disable
-
-# Optional — web frontend config (only needed for site_handler):
-COOKIE_DOMAIN=localhost
-FRONTEND_BASE_URL=http://localhost:5000
-PRIVATE_ACCESS_TOKEN=some-token
-PRIVATE_UPLOAD_TOKEN=some-upload-token
-
-# Optional — Eventarc triggers:
-EVENTARC_SA=
-EVENTARC_TRIGGER=
-
-# Optional — donation UI (can be empty):
-DONATION_HTML_SNIPPET_MONO=
-DONATION_HTML_SNIPPET_PRIVAT=
-
-# Optional — version tags:
-BACKEND_TAG=dev
-FRONTEND_TAG=dev
-
-# Optional — storage buckets (public pipeline):
-GCS_PUB_OUTPUT_BUCKET=local-output-bucket
-
-# ============================================================
-# Secret: dropbox-secrets  (OAuth tokens)
-# ============================================================
-
-# Required for Dropbox webhook + file sync:
-DROPBOX_APP_KEY=your-dropbox-app-key
-DROPBOX_APP_SECRET=your-dropbox-app-secret
-DROPBOX_REFRESH_TOKEN=your-dropbox-refresh-token
-
-# Required for Strava upload:
-STRAVA_APP_ID=your-strava-app-id
-STRAVA_CLIENT_SECRET=your-strava-client-secret
-STRAVA_REFRESH_TOKEN=your-strava-refresh-token
-STRAVA_ACCESS_TOKEN=your-strava-access-token
-STRAVA_EXPIRES_AT=0
-```
+The **single source of truth** for every variable — its storage layer
+(`keys.env` / `names.env` / Secret Manager / Firestore), who reads it
+(`config.py`, `site_config.py`), and whether it is required — is the
+**[config manifest](docs/scripts/startup/config-manifest.md)**. The local-dev
+emulator seeding is driven from the same data via
+`gcp_actions/.../emulators/secret_manager/seed.py` (`SECRET_CONFIG_MAP`).
 
 ### How configuration flows at startup
 
@@ -607,9 +536,25 @@ The email values live in the `fullstack-app-json-keys` secret (`EMAIL_MODE`, `SE
 
 ---
 
-### Three-Tier Local Development
+### Local Runtime Modes
 
-The `local_dev.sh` script supports three modes via `--project` flag:
+The local environment is hybrid by design. The following services run locally
+in Podman when emulator mode is selected:
+
+| Service | Local behavior |
+|---------|----------------|
+| Secret Manager | Local emulator on `localhost:8083` |
+| Firestore | Local emulator on `localhost:8085` |
+| Pub/Sub | Local emulator on `localhost:8086` |
+| PostgreSQL | Local host, if configured and running |
+| Dropbox | Real Dropbox API; ngrok is used for webhooks |
+| Cloud Storage | Real GCS; there is no local GCS emulator in this setup |
+| Strava | Real Strava API when `STRAVA_UPLOAD=enable` |
+
+The app can boot with only the local emulators and dummy values, but a full
+end-to-end pipeline test can still incur GCP and external-service access.
+
+The `local_dev.sh` script supports three configuration modes via `--project`:
 
 | Mode | Command | Description |
 |------|---------|-------------|
@@ -617,14 +562,24 @@ The `local_dev.sh` script supports three modes via `--project` flag:
 | **Dev GCP Project** | `./local_dev.sh start --project dev` | Connects to real dev GCP project (`bigbikedata-dev-power-core`) for integration testing |
 | **Prod GCP Project** | `./local_dev.sh start --project prod` | Connects to real prod GCP project (use with caution!) |
 
-**Emulator mode (default)** — Uses `local_config.json` with emulator hosts. No real GCP resources needed.
+**Emulator mode (default)** — Uses `local_config.json` for local Secret
+Manager, Firestore, and Pub/Sub emulators. GCP authentication is not needed to
+boot the app. Real GCS, Dropbox, Strava, or PostgreSQL access is still needed
+when the selected pipeline stage uses those services.
+
+**Hybrid emulator mode** — Add `--from-gcp` to copy the Firestore configuration
+document from a real GCP project before the app starts. This requires ADC, but
+runtime Secret Manager, Firestore, and Pub/Sub calls still go to local
+emulators.
 
 **Dev project mode** — Uses `local_config.dev.json` with real dev GCP project endpoints. Requires:
 - `gcloud auth application-default login`
 - Dev project `bigbikedata-dev-power-core` already provisioned
 - Real dev secrets in Secret Manager
+- Access to the dev project's GCS buckets when storage operations are tested
 
-**Prod project mode** — Uses `local_config.json` with real prod GCP project endpoints. **Use with extreme caution** — this connects to production resources!
+**Prod project mode** — Uses the production configuration with real GCP
+endpoints. **Use with extreme caution** — this connects to production resources.
 
 ### Firestore Emulator
 
@@ -638,13 +593,13 @@ after each restart.
 #### 1. Pull from GCP (the standard workflow)
 
 ```bash
-# One command — starts emulators AND pulls real GCP config:
+# One command — starts emulators and pulls only the Firestore config from GCP:
 ./local_dev.sh start --from-gcp
 
 # Or manually if emulators are already running:
 gcloud auth application-default login   # one-time
 FIRESTORE_EMULATOR_HOST=localhost:8085 \
-    python ../gcp_actions/gcp_actions/emulators/firestore/seed.py --from-project
+    .venv/bin/python ../../gcp_actions/gcp_actions/emulators/firestore/seed.py --from-project
 ```
 
 This reads the exact same document the production app uses and seeds it locally.
@@ -945,6 +900,63 @@ appended only once per key.
 > and `SEC_DROPBOX` pointers (e.g. `fullstack-app-json-keys`, `dropbox-secrets`). After provisioning,
 > point the deploy env file / `keys.env.{env}` at the real secret names and replace the placeholders with
 > real tokens via `gcloud secrets versions add`.
+
+### Post-bootstrap Runtime Configuration
+
+The bootstrap creates the GCP infrastructure and placeholder Secret Manager
+versions. It also generates deterministic names for buckets, service accounts,
+secrets, Pub/Sub resources, Artifact Registry, and Cloud Run services.
+
+All generated values are persisted in:
+
+```text
+power_core/docs/scripts/startup/names.env
+```
+
+Do not invent these names manually. Source `names.env` or use the environment
+files consumed by the deployment scripts.
+
+After the bootstrap completes, run the idempotent runtime configuration helper:
+
+```bash
+cd power_core/docs/scripts/startup
+./configure_runtime.sh dev --dry-run
+./configure_runtime.sh dev --apply
+```
+
+Use `prod` instead of `dev` for production. The helper prepares the generated
+Firestore configuration, creates generated application values when absent, and
+adds the generated application payload to `fullstack-app-json-keys` when
+`--apply` is used. It reports external credentials that still need to be
+provided and does not fabricate Dropbox or Strava credentials. It refuses to
+upload the application payload while a hard-required value such as
+`FRONTEND_BASE_URL` is missing.
+
+`FLASK_SECRET_KEY`, `PRIVATE_UPLOAD_TOKEN`, and `DROpbox_WEBHOOK_PATH` are
+generated by this project. They are not obtained from Google, Dropbox, or
+another provider. The helper includes them in the ready-to-upload
+`fullstack-app-json-keys` payload. On repeated `--apply` runs it preserves
+existing values from Secret Manager instead of rotating them unexpectedly.
+
+The exact key registry and storage layer remain defined by the
+[configuration manifest](docs/scripts/startup/config-manifest.md).
+
+`FRONTEND_BASE_URL` is not generated by the GCP bootstrap. It must point to the
+frontend URL that users can open. For a dev deployment, configure a separate
+hosting subdomain such as:
+
+```text
+https://test.domen.com
+```
+
+The `test.domen.com` DNS record and custom domain must be configured in the
+frontend hosting provider, including HTTPS. Set the same URL as
+`FRONTEND_BASE_URL` before running `configure_runtime.sh ... --apply`.
+
+For a frontend running only on the local machine, use its local URL instead,
+for example `http://localhost:3000`. Such a URL is suitable for local browser
+testing but cannot be used in emails or signed download links that must be
+opened from another device.
 
 ### Auto-detect from Branch (Recommended)
 ```bash

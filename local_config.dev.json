@@ -1,8 +1,5 @@
 {
   "GCP_PROJECT_ID": "bigbikedata-dev-power-core",
-  "SECRET_MANAGER_EMULATOR_HOST": "127.0.0.1:8083",
-  "FIRESTORE_EMULATOR_HOST": "127.0.0.1:8085",
-  "PUBSUB_EMULATOR_HOST": "127.0.0.1:8086",
   "DROPBOX_TOPIC_NAME": "bigbikedata-dev-power-core-dropbox-topic",
   "LOGGING_LEVEL": "DEBUG",
   "PG_HOST": "localhost",

@@ -50,6 +50,11 @@ append_env_value() {
   local key_value="$1"
   local env_file="${2:-names.env}"
   local key="${key_value%%=*}"
+  local value="${key_value#*=}"
+  if [[ -z "$value" ]]; then
+    echo "⚠️  $key is empty; will record it when a value is available."
+    return 0
+  fi
   if grep -q "^${key}=" "$env_file" 2>/dev/null; then
     echo "🮱 $key already recorded in $env_file. Skipping."
   else

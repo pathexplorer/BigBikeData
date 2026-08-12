@@ -312,6 +312,49 @@ export_generated_names() {
     export COMPUTE_ACCOUNT="${NAMES[compute_sa]}"
 }
 
+# Persist every deterministic name needed by deployment and runtime setup.
+# Secrets themselves are stored in Secret Manager; only their names are saved here.
+persist_generated_names() {
+    local env_file="${1:-names.env}"
+
+    append_env_value "GCP_PROJECT_ID=${NAMES[project_id]}" "$env_file"
+    append_env_value "GCP_PROJECT_NUMBER=${GCP_PROJECT_NUMBER:-${PROJECT_NUMBER:-}}" "$env_file"
+    append_env_value "GCP_BUCKET_NAME=${NAMES[bucket_main]}" "$env_file"
+    append_env_value "GCS_PUB_OUTPUT_BUCKET=${NAMES[bucket_output]}" "$env_file"
+    append_env_value "GCS_PUB_INPUT_BUCKET=${NAMES[bucket_input]}" "$env_file"
+    append_env_value "GCS_BUILD_BUCKET=${NAMES[bucket_build]}" "$env_file"
+
+    append_env_value "SA_NAME_DROPBOX=${NAMES[sa_dropbox]}" "$env_file"
+    append_env_value "SA_NAME_STRAVA=${NAMES[sa_strava]}" "$env_file"
+    append_env_value "SA_NAME_RUN=${NAMES[sa_run]}" "$env_file"
+    append_env_value "SA_NAME_EVENTARC=${NAMES[eventarc_sa]}" "$env_file"
+    append_env_value "SA_EMAIL_DROPBOX=${NAMES[sa_dropbox_email]}" "$env_file"
+    append_env_value "SA_EMAIL_STRAVA=${NAMES[sa_strava_email]}" "$env_file"
+    append_env_value "SA_EMAIL_RUN=${NAMES[sa_run_email]}" "$env_file"
+    append_env_value "SA_EMAIL_EVENTARC=${NAMES[sa_eventarc_email]}" "$env_file"
+    append_env_value "COMPUTE_ACCOUNT=${NAMES[compute_sa]}" "$env_file"
+
+    append_env_value "SEC_DROPBOX=${NAMES[secret_dropbox]}" "$env_file"
+    append_env_value "SEC_FULLSTACK_JSON_KEYS=${NAMES[secret_fullstack_json_keys]}" "$env_file"
+    append_env_value "APP_JSON_KEYS=${NAMES[secret_fullstack_json_keys]}" "$env_file"
+    append_env_value "ARTIFACT_REGISTRY=${NAMES[artifact_registry]}" "$env_file"
+
+    append_env_value "GCP_TOPIC_NAME=${NAMES[pubsub_topic]}" "$env_file"
+    append_env_value "GCP_DLQ_TOPIC_NAME=${NAMES[pubsub_dlq_topic]}" "$env_file"
+    append_env_value "DROPBOX_TOPIC_NAME=${NAMES[pubsub_dropbox_topic]}" "$env_file"
+    append_env_value "DROPBOX_DLQ_TOPIC_NAME=${NAMES[pubsub_dropbox_dlq_topic]}" "$env_file"
+    append_env_value "DROPBOX_SUBSCRIPTION_NAME=${NAMES[pubsub_dropbox_subscription]}" "$env_file"
+
+    append_env_value "EVENTARC_SA=${NAMES[eventarc_sa]}" "$env_file"
+    append_env_value "EVENTARC_TRIGGER=${NAMES[eventarc_trigger]}" "$env_file"
+    append_env_value "CLOUD_RUN_SERVICE=${NAMES[cloud_run_core]}" "$env_file"
+    append_env_value "CLOUD_RUN_SERVICE_PUB=${NAMES[cloud_run_pub]}" "$env_file"
+
+    if [[ -n "${SA_DEPLOYER_EMAIL:-}" ]]; then
+        append_env_value "SA_DEPLOYER_EMAIL=${SA_DEPLOYER_EMAIL}" "$env_file"
+    fi
+}
+
 #╔═══════════════════════════════════════════════════════════════════════════╗
 #║ Generate and export names without prompting (deterministic).             ║
 #║ Used on resume so skipped stages still have the generated variables.     ║
