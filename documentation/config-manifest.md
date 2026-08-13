@@ -5,7 +5,8 @@ exactly where each value lives. Use this table when you need to re-create an
 environment (prod/dev), add a new variable, or debug "why is my value missing".
 
 > This manifest is the **single source of truth** for configuration facts. The
-> service READMEs (`README.md` in `power_core/` and `docs/scripts/startup/`)
+> service READMEs (`power_core_README.md`, `site_handler_README.md`, and
+> `setup_script_README.md` in `documentation/`)
 > reference it for *where variables live and who reads them*; they do **not**
 > carry their own copies of the tables below. The emulator seeder
 > (`gcp_actions/.../emulators/secret_manager/seed.py` → `SECRET_CONFIG_MAP`)
@@ -22,7 +23,7 @@ environment (prod/dev), add a new variable, or debug "why is my value missing".
 | # | Layer | Storage | Loaded at | Cost | Notes |
 |---|-------|---------|-----------|------|-------|
 | 1 | **Bootstrap input** | `keys.env.{dev/prod}` (next to virtualenv, gitignored) | `./start.sh` welcome/stage 0 | – | Only genuine user input + deterministic naming inputs |
-| 2 | **Bootstrap output** | `names.env` (in `docs/scripts/startup/`) | `./start.sh` and `configure_runtime.sh` | – | Every generated resource name and service account email, persisted once; no secret values |
+| 2 | **Bootstrap output** | `names.env` (in `documentation/startup/`) | `./start.sh` and `configure_runtime.sh` | – | Every generated resource name and service account email, persisted once; no secret values |
 | 3 | **Secret Manager** | `fullstack-app-json-keys` + `dropbox-secrets` secrets | Cloud Run boot (`InjectConfig`) | 💰 paid per API call | Only sensitive values go here |
 | 4 | **Firestore** | document `config/local/settings/data` | every container start (`InjectConfig`) | cheap | Non-secret, frequently-read config |
 
@@ -48,7 +49,8 @@ then provide that value before applying the runtime Secret Manager payload.
 Use `configure_runtime.sh` after bootstrap to write the generated Firestore
 values and prepare the generated part of the `fullstack-app-json-keys` payload.
 Dropbox, Strava, email, Wahoo, and ngrok credentials must still be obtained
-from their respective providers.
+from their respective providers — see
+[`external_services_setup.md`](external_services_setup.md).
 
 ---
 
@@ -116,6 +118,10 @@ Status flags:
 | `DROPBOX_WATCHED_FOLDER` | EnV | optional Cloud Run env | Opt | Opt | `config.py` (default `/apps/activities`) |
 
 ### Combined Dropbox+Strava secret payload (`SEC_DROPBOX` → `{org}-{env}-{app}-dropbox-secrets`)
+
+> How to obtain these credentials from Dropbox/Strava (apps, scopes, OAuth
+> refresh-token flows) is described in
+> [`external_services_setup.md`](external_services_setup.md).
 
 | Variable | Required | Notes |
 |----------|:---:|-------|
@@ -209,6 +215,9 @@ limits SA IDs to 30 chars. E-mail = `{sa}@{project_id}.iam.gserviceaccount.com`.
 2. **Fill 2 fields:** `MY_USER_ACCOUNT`, `SA_DEPLOYER_EMAIL` (name part only).
    Everything else has a correct deterministic default.
 3. **Register external apps** (per-environment, can't be derived):
+   Follow [`external_services_setup.md`](external_services_setup.md) to prepare
+   Dropbox, Wahoo, Strava, Brevo/SMTP, site hosting, and (local) ngrok
+   credentials before any cloud provisioning.
    - Create a **separate Dropbox App** for this env (dev console).
    - Grab App Key / App Secret; generate Refresh Token (OAuth flow).
    - Strava Client ID / Secret / Refresh Token.

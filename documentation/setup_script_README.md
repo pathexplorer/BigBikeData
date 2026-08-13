@@ -11,13 +11,47 @@ Supports **dual-environment provisioning**: `prod` (production) and `dev` (devel
 > stages are exercised. Use this bootstrap when you need the dev/prod GCP layer
 > or Cloud Run deployment.
 
+## One-shot full setup (`main.sh`)
+
+**`main.sh` is the new top-level entry point** that replaces the old bare
+`start.sh` workflow. It guides you through the whole environment setup in three
+phases and never leaves you with a silent "everything is ready":
+
+1. **Phase 1 — External Services wizard (interactive).** A guided walkthrough
+   of [`external_services_setup.md`](external_services_setup.md): Dropbox,
+   Strava, Brevo/SMTP, site hosting, and ngrok. Values are collected
+   interactively and saved **encrypted (gpg)** to
+   `.external_services.{env}.gpg` — never in plaintext. It ends with a summary
+   table showing every configured variable and where it will be stored.
+2. **Phase 2 — Cloud bootstrap.** Delegates to `./start.sh {env}`.
+3. **Phase 3 — Runtime config.** Runs `./configure_runtime.sh {env} --apply`
+   (Firestore + generated `fullstack-app-json-keys` values) and uploads the
+   wizard-collected external credentials into the `dropbox-secrets` and
+   `fullstack-app-json-keys` Secret Manager secrets.
+
+```bash
+# Full guided setup (recommended for new environments)
+./main.sh dev
+./main.sh prod
+
+# Unattended / CI preview (skip wizard, no GCP changes)
+./main.sh dev --dry-run --no-wizard
+
+# Auto-approve the wizard confirmation prompt
+./main.sh dev --yes
+```
+
+Re-running `main.sh` prefills every previously-entered value from the encrypted
+state file — only the Diff-vs-last-run questions are asked again.
+
+> gpg is required for the encrypted state file. On re-run you are asked for the
+> passphrase; keep it safe (it protects the collected provider tokens at rest).
+
 ## Quick Start (Interactive Welcome Phase)
 
 **New users**: Just run the script! It will guide you through all required configuration interactively:
 
 ```bash
-source your-venv/bin/activate
-
 # Provision production environment (will prompt for all settings)
 ./start.sh prod
 
@@ -48,15 +82,23 @@ the rest:
 ## Prerequisites
 
 - **Google Cloud SDK** (`gcloud`) installed and authenticated
+- **Firebase CLI** (`firebase`) installed — `npm i -g firebase-tools` (used by
+  Stage 13 to link Firebase Hosting to the bootstrapped project)
 - **Docker** installed (for Artifact Registry authentication)
-- **Python virtual environment** activated (for environment file discovery)
+- **`python3`** and **`jq`** on `PATH` (used by preprocessing helpers)
+
+> The scripts **do not require an activated virtual environment**. They locate
+> the environment file by scanning, in order: `$VIRTUAL_ENV/../keys.env.{env}`
+> (if a venv is active), then `dirname($VIRTUAL_ENV)/keys.env.{env}`, then
+> `documentation/startup/../../power_core/keys.env.{env}` (this project).
 
 ### Environment file (`keys.env.{prod|dev}`)
 
-The script reads `keys.env.{prod|dev}` located **next to your virtualenv** — i.e.
-`$VIRTUAL_ENV/../keys.env.{env}` (for this project, `power_core/keys.env.{env}`). If the file
-doesn't exist, the Welcome Phase creates/collects it for you. To prefill values, copy the
-templates (`keys.env.prod.template` / `keys.env.dev.template` at the repo root) there.
+The script looks for `keys.env.{prod|dev}` in several locations (see
+[Prerequisites](#prerequisites)) and uses the first one found — for this project
+that resolves to `power_core/keys.env.{env}`. If the file doesn't exist, the
+Welcome Phase creates/collects it for you. To prefill values, copy the templates
+(`keys.env.prod.template` / `keys.env.dev.template` at the repo root) there.
 
 > **Which variables do I need?** The complete registry is in
 > [`config-manifest.md`](config-manifest.md) — every variable, which layer it
@@ -74,40 +116,23 @@ The only variable you truly must set is **`MY_USER_ACCOUNT`**:
 | `APP_NAME`          | Application name                       | `power-core`     |
 | `SA_DEPLOYER_EMAIL` | Deployer service account email (created by Stage 5b; only the name matters) | `bike-ci-deployer` |
 
-### Dropbox & Strava Setup (Required for Both Environments)
+### External service credentials (required before cloud setup)
 
-**Create TWO separate Dropbox Apps** in the [Dropbox Developer Console](https://www.dropbox.com/developers/apps). Each environment uses a **separate Dropbox account**:
+Dropbox, Strava, email (Brevo/SMTP), and site-hosting credentials are
+**per-environment, manually-obtained values** that must be prepared **before**
+provisioning the cloud project. Full setup instructions, per-service variables,
+and the pre-flight checklist are in
+**[`external_services_setup.md`](external_services_setup.md)**.
 
-| Environment | App Name | App's own folder | Watched folder (Wahoo source) | Purpose |
-|-------------|----------|------------------|-------------------------------|---------|
-| Production  | `bigbikedata-prod` | `/apps/bigbikedata-prod` | `/apps/activities` | Real user data |
-| Development | `bigbikedata-dev` | `/apps/bigbikedata-dev` | `/apps/activities` | Test data |
-
-The watched folder `/apps/activities` is created by the Wahoo connection inside each account
-(`Apps` is Dropbox's predefined per-app folder; `activities` is the single folder the user
-renamed after connecting Wahoo). The app must be created as a **Scoped App with Full Dropbox
-access** so it can read files outside its own folder. There must be exactly **one** watched
-folder, and its path can be overridden per environment via `DROPBOX_WATCHED_FOLDER`.
-
-Each app needs:
-1. **App Key** → `DROPBOX_APP_KEY`
-2. **App Secret** → `DROPBOX_APP_SECRET`
-3. **Refresh Token** → `DROPBOX_REFRESH_TOKEN` (generate via OAuth flow)
-
-**Strava credentials** are also stored in the same combined secret:
-- **Client ID** → `STRAVA_CLIENT_ID`
-- **Client Secret** → `STRAVA_CLIENT_SECRET`
-- **Refresh Token** → `STRAVA_REFRESH_TOKEN`
-
-The credentials are stored in Secret Manager under a **single combined secret** named `{org}-{env}-{app}-dropbox-secrets` (e.g., `bigbikedata-dev-power-core-dropbox-secrets`). This secret contains both Dropbox and Strava credentials.
-
-Additionally, a separate secret **`fullstack-app-json-keys`** (`{org}-{env}-{app}-fullstack-app-json-keys`) is created for all other JSON key files (service account keys, etc.).
+In short: create a **separate Dropbox app/account per environment**, one shared
+Strava app (with a per-env upload toggle), one Brevo account with a separate
+sender per env, and a Firebase Hosting site with a custom domain. These
+credentials are stored in the **combined `dropbox-secrets` secret** and the
+**`fullstack-app-json-keys` secret** — never in `keys.env`.
 
 ## Usage
 
 ```bash
-source your-venv/bin/activate
-
 # Provision production environment (default)
 ./start.sh prod
 
@@ -194,6 +219,7 @@ Run validation independently:
 | 9     | Artifact Registry     | Creates a Docker repository and configures Docker auth |
 | 11    | JSON Credentials      | **Optional** — downloads a key file for the Run SA only if `GOOGLE_APPLICATION_CREDENTIALS` is set |
 | 12    | Create Firestore      | Creates a Firestore database in the specified region |
+| 13    | Firebase Hosting link | Links the site_handler hosting project to the bootstrapped GCP project (`firebase` CLI or `site_handler/.firebaserc`); reports what stays manual (custom domain + DNS) |
 
 > Stage 10 is omitted intentionally — numbering matches the original deployment plan.
 > Stage 6 (secrets) intentionally runs **before** Stage 7 (IAM binding + verification), because the access verification in Stage 7 reads the secrets and binding roles requires the secrets to already exist. If you have an old `script_progress.log`, remove it (or re-run with `reset`) so the renumbered stages take effect.
@@ -226,7 +252,9 @@ It then reminds you to set `EVENTARC_SA` and `EVENTARC_TRIGGER` inside the
 
 `start.sh` provisions infrastructure and creates the two application secrets
 with placeholder values. It does not obtain credentials from Dropbox, Strava,
-Brevo, SMTP, Wahoo, or ngrok.
+Brevo, SMTP, Wahoo, or ngrok — those external credentials are prepared
+separately (see [`external_services_setup.md`](external_services_setup.md)) and
+stored into the secrets after bootstrap.
 
 The naming stage generates more values than are needed during resource
 creation. They are persisted in `names.env`, including project and bucket

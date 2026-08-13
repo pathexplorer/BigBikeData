@@ -66,6 +66,9 @@ ENV_FILE="$VIRTUAL_ENV/../keys.env.${ENV_MODE}"
 if [ ! -f "$ENV_FILE" ]; then
     ENV_FILE="$(dirname "$VIRTUAL_ENV")/keys.env.${ENV_MODE}"
 fi
+if [ ! -f "$ENV_FILE" ]; then
+    ENV_FILE="$SCRIPT_DIR/../../power_core/keys.env.${ENV_MODE}"
+fi
 
 if [ -f "$ENV_FILE" ]; then
     echo "Loading ${ENV_MODE} environment variables from $ENV_FILE..."
@@ -149,6 +152,11 @@ load_variables_to_main() {
 }
 load_variables_to_main "lib"
 load_variables_to_main "addons"
+
+# Stage warnings collected across the run (e.g. manual external steps) and
+# re-printed in the final summary, so a "complete" script is never silent about
+# warnings that appeared earlier.
+FIREBASE_SETUP_WARNINGS=()
 
 # ============================================================
 # STAGE V: Pre-Flight Validation (NEW)
@@ -556,7 +564,19 @@ stage_12_FIRESTORE_CREATE() {
 }
 run_stage "stage_12_FIRESTORE_CREATE"
 
+stage_13_FIREBASE_SETUP() {
+    setup_firebase "$GCP_PROJECT_ID" "$ENV_MODE"
+}
+run_stage "stage_13_FIREBASE_SETUP"
+
 echo "Setup is complete and correct."
+if [[ ${#FIREBASE_SETUP_WARNINGS[@]} -gt 0 ]]; then
+    echo ""
+    echo "⚠️ Setup finished, but the following manual steps are still pending:"
+    for warning in "${FIREBASE_SETUP_WARNINGS[@]}"; do
+        echo "   - $warning"
+    done
+fi
 timer_pause
 echo "Total Execution Time (excluding user pauses): ${TIMER_TOTAL_SECONDS} seconds"
 

@@ -147,12 +147,37 @@ if [ $BUILD_EXIT_CODE -ne 0 ]; then
     exit $BUILD_EXIT_CODE
 fi
 
+# --- Prepare Firebase hosting config with the real Cloud Run service id ---
+# The committed firebase.json / firebase.dev.json are project artifacts whose
+# rewrite target may be stale (e.g. a legacy service id). Inject the
+# environment-derived service name so hosting always rewrites to the service
+# that was just deployed. The configured service id comes from keys.env
+# (CLOUD_RUN_SERVICE_PUB), set by the bootstrap naming convention.
+HOSTING_SRC="${FIREBASE_CONFIG:-firebase.json}"
+if [[ "${ENV_MODE}" == "dev" ]]; then
+    HOSTING_SRC="${FIREBASE_CONFIG_DEV:-firebase.dev.json}"
+fi
+if ! command -v jq >/dev/null 2>&1; then
+    echo "❌ ERROR: 'jq' is required to render the Firebase hosting config." >&2
+    exit 1
+fi
+HOSTING_TMP="$(mktemp "${HOSTING_SRC}.rendered.XXXXXX")"
+if ! jq --arg svc "${CLOUD_RUN_SERVICE_PUB}" '
+    .hosting.rewrites |=
+        map(if has("run") then .run.serviceId = $svc else . end)
+' "${HOSTING_SRC}" > "${HOSTING_TMP}"; then
+    echo "❌ ERROR: Failed to render Firebase hosting config from ${HOSTING_SRC}." >&2
+    rm -f "${HOSTING_TMP}"
+    exit 1
+fi
+trap 'rm -f "${HOSTING_TMP}"' EXIT
+
 # --- Post-deploy: Update Firebase Hosting ---
 if [[ "${ENV_MODE}" == "prod" ]]; then
     echo "🔥 Deploying to Firebase Hosting (production)..."
-    firebase deploy --only hosting
+    firebase deploy --only hosting --config "${HOSTING_TMP}"
 elif [[ "${ENV_MODE}" == "dev" ]]; then
     echo "🔥 Deploying to Firebase Preview Channel (development)..."
     # Creates a preview channel like: https://bigbikedata--dev-app-rand123.web.app
-    firebase hosting:channel:deploy dev-app --expires 7d
+    firebase hosting:channel:deploy dev-app --config "${HOSTING_TMP}" --expires 7d
 fi

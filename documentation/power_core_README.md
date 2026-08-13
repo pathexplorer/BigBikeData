@@ -162,7 +162,7 @@ configuration; the combined secret (`dropbox-secrets` via `SEC_DROPBOX`) holds
 the Dropbox/Strava OAuth tokens. The **per-key definition** of what goes into
 each payload — every variable, its storage layer, who reads it, and whether it
 is required — is the single source of truth in the
-**[config manifest](docs/scripts/startup/config-manifest.md)**; it is not
+**[config manifest](config-manifest.md)**; it is not
 duplicated here.
 
 ### `local_config.json` (local dev only)
@@ -361,7 +361,7 @@ If you need to re-seed or add real tokens later:
 The **single source of truth** for every variable — its storage layer
 (`keys.env` / `names.env` / Secret Manager / Firestore), who reads it
 (`config.py`, `site_config.py`), and whether it is required — is the
-**[config manifest](docs/scripts/startup/config-manifest.md)**. The local-dev
+**[config manifest](config-manifest.md)**. The local-dev
 emulator seeding is driven from the same data via
 `gcp_actions/.../emulators/secret_manager/seed.py` (`SECRET_CONFIG_MAP`).
 
@@ -457,84 +457,20 @@ Secrets are stored in a **gocryptfs-encrypted volume** — never plaintext on di
 
 ## External Services Setup
 
-This section covers the one-time setup for **Dropbox** and **Strava** — the two external services the pipeline integrates with. These steps are required before the private pipeline can sync files and upload activities.
+This section covers the one-time setup for **Dropbox**, **Strava**,
+**Brevo / SMTP (email)**, and **site hosting** — the external services the
+pipeline integrates with. These steps are required before the private pipeline
+can sync files, upload activities, or send emails. They are now documented in a
+dedicated file:
 
-### External services per environment
+👉 **[`external_services_setup.md`](external_services_setup.md)** — includes the
+per-environment matrix, scoped Dropbox app creation, Wahoo connection, Strava
+refresh-token flow, Brevo sender separation, Firebase Hosting custom-domain
+setup, the local ngrok tunnel, and the pre-cloud checklist of every credential
+to gather.
 
-External services are **shared across environments** where possible — the rule is *one service account, separate actor per env* (sender / folder / topic), not duplicated infrastructure:
-
-| Service | Env separation | Why |
-|---------|---------------|-----|
-| **Brevo (email)** | Same account + separate `SENDER_EMAIL` per env (dev uses `develop@offteleport.cloud`); optionally a restricted API key for dev | Sender identity isolates reputation; dev must never spam from the prod sender |
-| **SMTP fallback** | Same account, separate mailbox/user per env | Same reasoning as Brevo |
-| **Dropbox** | Separate Dropbox account per env (its own app + Wahoo folder) | Real user data — isolation is required |
-| **Strava** | `STRAVA_UPLOAD=disable` in dev; `enable` in prod | Strava API requires a paid subscription; dev uses no API |
-| **GCP (Firestore, Pub/Sub, GCS)** | Same project family, separate resources per env (already done via naming convention) | Env isolation within one cloud |
-
-The email values live in the `fullstack-app-json-keys` secret (`EMAIL_MODE`, `SENDER_EMAIL`, `BREVO_API_KEY`), so both dev and prod can point at the same Brevo account with different senders.
-
-### Dropbox Setup
-
-**1. Create a Dropbox App**
-- Go to [Dropbox App Console](https://www.dropbox.com/developers/apps)
-- Click **Create app** → Choose **Scoped App**
-- **Choose Full Dropbox access** — the watched folder (`/apps/activities`) lives outside the app's own folder `/apps/<app-name>`, so App Folder access would reject reads of it.
-- Set permissions (scopes):
-  - `files.metadata.read`
-  - `files.metadata.write`
-  - `files.content.read`
-  - `files.content.write`
-- **Important**: Use a dedicated Dropbox account for bike files.
-
-**1b. Connect Wahoo (one-time per account)**
-- `Apps` is Dropbox's predefined per-app folder. The Wahoo connection creates a folder inside it; after connecting you may **rename** it (this project uses `activities`), but there must be exactly **one** watched folder.
-- The pipeline watches `DROPBOX_WATCHED_FOLDER`, default `/apps/activities` (`power_core/power_core/project_env/config.py`). If you rename the folder, update this env var in the deployed service.
-- ⚠️ **Renaming a folder with existing files re-triggers a full sync** — Dropbox reports every file as re-added, so the pipeline re-processes and re-uploads them to Strava (duplicates). Do this before loading data.
-
-**2. Get a Refresh Token**
-- Dropbox access tokens expire in 10 days (14400 minutes). You need a **refresh token** to generate new access tokens automatically.
-- In the App Console, generate a refresh token (requires the scopes above).
-- Save the refresh token securely — it will be stored in Google Secret Manager as `DROPBOX_REFRESH_TOKEN`.
-
-**3. Configure Webhook**
-- In the App Console, set the webhook URI to your Cloud Run service URL + the secret path (e.g., `https://power-core-abc123.run.app/<DROPBOX_WEBHOOK_PATH>`).
-- The `DROPBOX_WEBHOOK_PATH` is stored in the `dropbox-secrets` secret and can be rotated via `./local_dev.sh rotate-webhook`.
-
-**4. Local Development with ngrok**
-- Dropbox cannot reach `localhost`. Local dev uses **ngrok** to expose a public tunnel.
-- `./local_dev.sh start` starts ngrok automatically (requires an ngrok authtoken).
-- The script prints the public URL and the full Dropbox webhook URL to paste into the App Console.
-- To test: visit `https://<ngrok-url>/?challenge=test123` → should return `test123` and log "challenge received 123".
-
-### Strava Setup
-
-**1. Create a Strava App**
-- Go to [Strava Developer Console](https://developers.strava.com/)
-- Create an application → note `Client_ID` and `Client_Secret`.
-
-**2. Get Refresh Token (Local)**
-- Add to your local `keys.env`:
-  ```bash
-  STRAVA_CLIENT_ID=your_client_id
-  STRAVA_CLIENT_SECRET=your_client_secret
-  ```
-- Run the token exchange script (located at `power_core/power_core/strava/`):
-  ```bash
-  python get_refresh_token.py
-  ```
-- Visit `http://localhost:5000/exchange_token`, click **Authorize**, then **Authorize** again on Strava.
-- Copy the returned `access_token`, `expires_at`, and `refresh_token`.
-
-**3. Store in Secret Manager**
-- The script creates/updates secrets in Google Secret Manager:
-  - `strava-refresh-token`
-  - `strava-access-token`
-  - `strava-expires-at`
-- These are also consolidated into the `dropbox-secrets` secret (8 keys total) for the app.
-
-> **Note**: If you re-run with different scopes, you get a new refresh token, but previous versions remain valid.
-
----
+The rule is *one service account, separate actor per env* (sender / folder /
+topic), not duplicated infrastructure.
 
 ### Local Runtime Modes
 
@@ -845,11 +781,11 @@ by `./power_core_run.sh` via Google Cloud Build.
 ### GCP Project Bootstrap
 
 Every environment (`prod`, `dev`) needs a provisioned GCP project. This is a **one-time** step,
-done by the bootstrap script in `docs/scripts/startup/` (full reference:
-[`docs/scripts/startup/README.md`](docs/scripts/startup/README.md)):
+done by the bootstrap script in `documentation/startup/` (full reference:
+[`setup_script_README.md`](setup_script_README.md)):
 
 ```bash
-cd power_core/docs/scripts/startup
+cd documentation/startup
 ./start.sh prod    # provision production environment
 ./start.sh dev     # provision development environment
 ```
@@ -910,7 +846,7 @@ secrets, Pub/Sub resources, Artifact Registry, and Cloud Run services.
 All generated values are persisted in:
 
 ```text
-power_core/docs/scripts/startup/names.env
+documentation/startup/names.env
 ```
 
 Do not invent these names manually. Source `names.env` or use the environment
@@ -919,7 +855,7 @@ files consumed by the deployment scripts.
 After the bootstrap completes, run the idempotent runtime configuration helper:
 
 ```bash
-cd power_core/docs/scripts/startup
+cd documentation/startup
 ./configure_runtime.sh dev --dry-run
 ./configure_runtime.sh dev --apply
 ```
@@ -939,19 +875,13 @@ another provider. The helper includes them in the ready-to-upload
 existing values from Secret Manager instead of rotating them unexpectedly.
 
 The exact key registry and storage layer remain defined by the
-[configuration manifest](docs/scripts/startup/config-manifest.md).
+[configuration manifest](config-manifest.md).
 
 `FRONTEND_BASE_URL` is not generated by the GCP bootstrap. It must point to the
-frontend URL that users can open. For a dev deployment, configure a separate
-hosting subdomain such as:
-
-```text
-https://test.domen.com
-```
-
-The `test.domen.com` DNS record and custom domain must be configured in the
-frontend hosting provider, including HTTPS. Set the same URL as
-`FRONTEND_BASE_URL` before running `configure_runtime.sh ... --apply`.
+frontend URL that users can open. The hosting site, custom domain, DNS record,
+and HTTPS are configured in the frontend hosting provider — see
+[`external_services_setup.md`](external_services_setup.md) §4. Set the same URL
+as `FRONTEND_BASE_URL` before running `configure_runtime.sh ... --apply`.
 
 For a frontend running only on the local machine, use its local URL instead,
 for example `http://localhost:3000`. Such a URL is suitable for local browser

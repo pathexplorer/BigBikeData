@@ -30,8 +30,8 @@ validate_gcloud_version() {
     echo "🔍 Validating gcloud version..."
     local min_version="450.0.0"
     local current_version
-    current_version=$(gcloud version --format="value(Google Cloud SDK)" 2>/dev/null | head -1)
-    if [[ -z "$current_version" ]]; then
+    current_version=$(gcloud version --format=json 2>/dev/null | jq -r '."Google Cloud SDK"' 2>/dev/null)
+    if [[ -z "$current_version" || "$current_version" == "null" ]]; then
         echo "   ⚠️  Could not determine gcloud version"
         return 0
     fi
@@ -117,7 +117,7 @@ validate_quota_limits() {
     local project_usage
     project_usage=$(gcloud compute project-info describe --format="value(quotas[metric=PROJECTS].usage)" 2>/dev/null || echo "unknown")
 
-    if [[ "$project_limit" != "unknown" && "$project_usage" != "unknown" ]]; then
+    if [[ -n "$project_limit" && "$project_limit" != "unknown" && -n "$project_usage" && "$project_usage" != "unknown" ]]; then
         local remaining=$((project_limit - project_usage))
         if (( remaining <= 0 )); then
             echo "🯀 ERROR: Project quota exhausted ($project_usage/$project_limit). Request quota increase."

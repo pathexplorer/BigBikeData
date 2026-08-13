@@ -36,10 +36,10 @@ for f in "$SCRIPT_DIR"/lib/utils.sh "$SCRIPT_DIR"/lib/naming_convention.sh; do
 done
 
 # --- Load keys.env for ORG_PREFIX / APP_NAME / GCP_PROJECT_ID ---
-VENV_PATH="$SCRIPT_DIR/../../../.venv"
+VENV_PATH="$SCRIPT_DIR/../../power_core/.venv"
 ENV_FILE="$VENV_PATH/../keys.env.${ENV_MODE}"
 if [[ ! -f "$ENV_FILE" ]]; then
-    ENV_FILE="$SCRIPT_DIR/../../../keys.env.${ENV_MODE}"
+    ENV_FILE="$SCRIPT_DIR/../../power_core/keys.env.${ENV_MODE}"
 fi
 if [[ ! -f "$ENV_FILE" ]]; then
     echo "🯀 ERROR: Environment file not found: $ENV_FILE"

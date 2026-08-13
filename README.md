@@ -11,7 +11,7 @@ BigBikeData/
 
 ## Architecture Overview
 
-![sheme](./power_core/docs/Scheme.webp)
+![sheme](./documentation/Scheme.webp)
 
 ## Services
 
@@ -34,12 +34,34 @@ BigBikeData/
 
 ## Deployment
 
+### 0. Gather external service credentials (before any provisioning)
+
+Dropbox (app per env + Wahoo connection), Strava, email (Brevo/SMTP), and the
+site-hosting domain are **manually-obtained, per-environment values**. Gather
+them first — the cloud setup depends on them. See
+[`external_services_setup.md`](documentation/external_services_setup.md) for the
+step-by-step instructions and the pre-flight checklist.
+
 ### 1. Infrastructure Provisioning (one-time per environment)
 
-Before deploying services, provision the GCP project and all required resources:
+The recommended way is the **one-shot guided setup**, which walks you through
+the external-services wizard, then bootstraps the cloud project, and finally
+writes the runtime config + secrets:
 
 ```bash
-cd power_core/docs/scripts/startup
+cd documentation/startup
+
+# Full guided setup (external-services wizard → cloud bootstrap → runtime config)
+./main.sh dev     # or prod
+
+# Unattended / CI preview (no wizard, no GCP changes)
+./main.sh dev --dry-run --no-wizard
+```
+
+To provision the cloud layer only (the classic flow), run `start.sh` directly:
+
+```bash
+cd documentation/startup
 
 # Provision production environment
 ./start.sh prod

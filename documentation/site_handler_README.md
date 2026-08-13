@@ -130,7 +130,16 @@ The script auto-detects the environment from the current Git branch:
 | **Production** | `firebase.json` | `site-handler` | `https://app.bigbikedata.com` |
 | **Development** | `firebase.dev.json` | `site-handler-dev` | `https://bigbikedata--dev-app-*.web.app` |
 
+The Cloud Run service id in the hosting rewrites is **injected at deploy time**:
+`site_handler_run.sh` renders the config with the environment's
+`CLOUD_RUN_SERVICE_PUB` value (from the bootstrap naming convention) before
+deploying, so the committed `firebase.json`/`firebase.dev.json` never go stale.
 The preview channel URL is printed after deployment. Share it for testing.
+
+> The Firebase project, custom-domain, DNS, and HTTPS setup — plus
+> `FRONTEND_BASE_URL` and `ALLOWED_DOMAINS` — are prepared **before** cloud
+> provisioning. See
+> [`external_services_setup.md`](external_services_setup.md) §4.
 
 ## Routes
 

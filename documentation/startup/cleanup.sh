@@ -43,6 +43,9 @@ ENV_FILE="$VIRTUAL_ENV/../keys.env.${ENV_MODE}"
 if [ ! -f "$ENV_FILE" ]; then
     ENV_FILE="$(dirname "$VIRTUAL_ENV")/keys.env.${ENV_MODE}"
 fi
+if [ ! -f "$ENV_FILE" ]; then
+    ENV_FILE="$SCRIPT_DIR/../../power_core/keys.env.${ENV_MODE}"
+fi
 
 if [ ! -f "$ENV_FILE" ]; then
     echo "🯀 ERROR: Environment file not found at $ENV_FILE"

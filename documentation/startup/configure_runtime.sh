@@ -32,7 +32,7 @@ fi
 ENV_FILE=""
 for candidate in \
     "${VIRTUAL_ENV:-}/../keys.env.${ENV_MODE}" \
-    "$SCRIPT_DIR/../../../keys.env.${ENV_MODE}" \
+    "$SCRIPT_DIR/../../power_core/keys.env.${ENV_MODE}" \
     "$SCRIPT_DIR/../../keys.env.${ENV_MODE}"; do
     if [[ -f "$candidate" ]]; then
         ENV_FILE="$candidate"
@@ -218,9 +218,62 @@ if [[ -n "$MISSING_REQUIRED" ]]; then
     exit 1
 fi
 
-gcloud firestore documents set config/local/settings/data \
-    --data="$FIRESTORE_PAYLOAD" \
-    --project="$GCP_PROJECT_ID"
+# Write Firestore document via REST API (gcloud firestore documents not available)
+ACCESS_TOKEN=$(gcloud auth print-access-token)
+FIRESTORE_URL="https://firestore.googleapis.com/v1/projects/${GCP_PROJECT_ID}/databases/(default)/documents/config/local/settings/data"
+
+python3 - "$FIRESTORE_PAYLOAD" "$FIRESTORE_URL" "$ACCESS_TOKEN" <<'PY'
+import json
+import sys
+import subprocess
+
+payload_path, url, token = sys.argv[1:]
+
+with open(payload_path) as f:
+    data = json.load(f)
+
+# Convert plain JSON to Firestore document format
+def to_firestore_value(v):
+    if isinstance(v, str):
+        return {"stringValue": v}
+    elif isinstance(v, bool):
+        return {"booleanValue": v}
+    elif isinstance(v, int):
+        return {"integerValue": str(v)}
+    elif isinstance(v, float):
+        return {"doubleValue": v}
+    elif v is None:
+        return {"nullValue": None}
+    elif isinstance(v, dict):
+        return {"mapValue": {"fields": {k: to_firestore_value(v) for k, v in v.items()}}}
+    elif isinstance(v, list):
+        return {"arrayValue": {"values": [to_firestore_value(i) for i in v]}}
+    else:
+        return {"stringValue": str(v)}
+
+firestore_doc = {"fields": {k: to_firestore_value(v) for k, v in data.items()}}
+
+import tempfile
+with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
+    json.dump(firestore_doc, tmp)
+    tmp_path = tmp.name
+
+result = subprocess.run([
+    "curl", "-sS", "-X", "PATCH",
+    "-H", f"Authorization: Bearer {token}",
+    "-H", "Content-Type: application/json",
+    "-d", f"@{tmp_path}",
+    f"{url}?updateMask.fieldPaths={','.join(data.keys())}"
+], capture_output=True, text=True)
+
+import os
+os.unlink(tmp_path)
+
+if result.returncode != 0:
+    print(f"Firestore write failed: {result.stderr}", file=sys.stderr)
+    sys.exit(1)
+print("Firestore document written successfully.")
+PY
 
 gcloud secrets versions add "$SEC_FULLSTACK_JSON_KEYS" \
     --data-file="$FULLSTACK_PAYLOAD" \

@@ -3,7 +3,7 @@
 setup_deployment_env() {
     local choice
     local verif_input
-
+j
     # Prompt for T or P (Read 1 character)
     read -r -p "Press T to push Test images or P to release to production: " -n 1 choice
     echo "" # Add newline for clean output
