@@ -56,19 +56,20 @@ cd documentation/startup
 
 # Unattended / CI preview (no wizard, no GCP changes)
 ./main.sh dev --dry-run --no-wizard
+
+# Post-deploy Pub/Sub wiring (after the first Cloud Run deploy)
+./main.sh wire dev
+
+# Preview runtime config only (no GCP changes)
+./main.sh runtime dev --dry-run
+
+# Remove all provisioned resources for an environment
+./main.sh cleanup dev --dry-run    # preview first!
 ```
 
-To provision the cloud layer only (the classic flow), run `start.sh` directly:
-
-```bash
-cd documentation/startup
-
-# Provision production environment
-./start.sh prod
-
-# Provision development environment
-./start.sh dev
-```
+`main.sh` is the **single entry point** — it orchestrates the internal scripts
+in `documentation/startup/scripts/`. `setup` is the default command, so plain
+`./main.sh dev` runs the full guided setup.
 
 This creates: GCP project, IAM, Secret Manager, Pub/Sub topics, Artifact Registry, Firestore, GCS buckets, and Service Accounts.
 

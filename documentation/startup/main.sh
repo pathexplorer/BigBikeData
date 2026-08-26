@@ -13,16 +13,20 @@
 #       Ends with a summary table of all collected variables & keys.
 #
 #   Phase 2 (Step 2/3): Cloud bootstrap
-#       Delegates to the existing `start.sh {env}`, which provisions the GCP
-#       project, IAM, secrets, Pub/Sub, Artifact Registry, Firestore, etc.
+#       Delegates to the existing `scripts/start.sh {env}`, which provisions
+#       the GCP project, IAM, secrets, Pub/Sub, Artifact Registry, Firestore,
+#       etc.
 #
 #   Phase 3 (Step 3/3): Runtime configuration + Secret Manager upload
 #       Runs `configure_runtime.sh {env} --apply` (Firestore + generated
 #       app-json keys) and uploads the wizard-collected external credentials
 #       into the `dropbox-secrets` and `fullstack-app-json-keys` secrets.
 #
-# Usage: ./main.sh [dev|prod] [--dry-run] [--no-wizard] [--yes]
+# Usage: ./main.sh [dev|prod] [setup] [--dry-run] [--no-wizard] [--yes]
 #        ./main.sh dev --no-wizard --dry-run   # unattended / CI preview
+#        ./main.sh wire dev [--dry-run]        # post-deploy Pub/Sub wiring
+#        ./main.sh runtime dev [--apply]       # runtime config preview/apply
+#        ./main.sh cleanup dev [--dry-run] [--yes]
 # ============================================================================
 
 set -euo pipefail
@@ -31,23 +35,29 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Argument parsing (mirrors start.sh) ---
 ENV_MODE="prod"
+COMMAND="setup"
 DRY_RUN=false
 SKIP_WIZARD=false
 AUTO_YES=false
+START_RESET=false
+START_NO_WELCOME=false
 
 for arg in "$@"; do
     case "$arg" in
+        setup|wire|runtime|cleanup) COMMAND="$arg" ;;
         prod|dev) ENV_MODE="$arg" ;;
+        reset) START_RESET=true ;;
         --dry-run|-n) DRY_RUN=true ;;
         --no-wizard) SKIP_WIZARD=true ;;
+        --no-welcome) START_NO_WELCOME=true ;;
         --yes|-y) AUTO_YES=true ;;
         --help|-h)
-            echo "Usage: $0 [dev|prod] [--dry-run] [--no-wizard] [--yes]"
+            echo "Usage: $0 [dev|prod] [setup|wire|runtime|cleanup] [--dry-run] [--no-wizard] [--yes]"
             exit 0
             ;;
         *)
             echo "ERROR: Unknown argument '$arg'" >&2
-            echo "Usage: $0 [dev|prod] [--dry-run] [--no-wizard] [--yes]" >&2
+            echo "Usage: $0 [dev|prod] [setup|wire|runtime|cleanup] [--dry-run] [--no-wizard] [--yes]" >&2
             exit 1
             ;;
     esac
@@ -56,6 +66,24 @@ done
 if [[ "$ENV_MODE" != "prod" && "$ENV_MODE" != "dev" ]]; then
     echo "ERROR: Invalid environment '$ENV_MODE'. Use 'prod' or 'dev'." >&2
     exit 1
+fi
+
+# --- Non-setup subcommands delegate to the internal scripts ---
+if [ "$COMMAND" != "setup" ]; then
+    CMD_ARGS=()
+    for arg in "$@"; do
+        case "$arg" in
+            setup|wire|runtime|cleanup) ;;
+            *) CMD_ARGS+=("$arg") ;;
+        esac
+    done
+    if [ "$COMMAND" = "wire" ]; then
+        exec "$SCRIPT_DIR/scripts/wire_pubsub.sh" "${CMD_ARGS[@]}"
+    elif [ "$COMMAND" = "runtime" ]; then
+        exec "$SCRIPT_DIR/scripts/configure_runtime.sh" "${CMD_ARGS[@]}"
+    else
+        exec "$SCRIPT_DIR/scripts/cleanup.sh" "${CMD_ARGS[@]}"
+    fi
 fi
 
 # Export for library functions (start.sh uses the same contract via DRY_RUN).
@@ -147,7 +175,7 @@ fi
 # STEP 2/3 — Cloud bootstrap (existing start.sh)
 # ============================================================================
 echo ""
-echo "  ▶ Phase 2: running cloud bootstrap ./start.sh ${ENV_MODE} ..."
+echo "  ▶ Phase 2: running cloud bootstrap ./scripts/start.sh ${ENV_MODE} ..."
 START_ARGS=("$ENV_MODE")
 if [ "$DRY_RUN" = true ]; then
     START_ARGS+=("--dry-run")
@@ -155,8 +183,14 @@ fi
 if [ "$AUTO_YES" = true ]; then
     START_ARGS+=("--yes")
 fi
+if [ "$START_RESET" = true ]; then
+    START_ARGS+=("reset")
+fi
+if [ "$START_NO_WELCOME" = true ]; then
+    START_ARGS+=("--no-welcome")
+fi
 
-if ! "$SCRIPT_DIR/start.sh" "${START_ARGS[@]}"; then
+if ! "$SCRIPT_DIR/scripts/start.sh" "${START_ARGS[@]}"; then
     echo ""
     echo "❌ Cloud bootstrap failed. See the error above."
     echo "   External-services values are already saved encrypted — re-run ./main.sh ${ENV_MODE} to continue."
@@ -182,7 +216,7 @@ if [ "$DRY_RUN" = true ]; then
 else
     CONFIGURE_ARGS+=("--apply")
 fi
-if ! "$SCRIPT_DIR/configure_runtime.sh" "${CONFIGURE_ARGS[@]}"; then
+if ! "$SCRIPT_DIR/scripts/configure_runtime.sh" "${CONFIGURE_ARGS[@]}"; then
     echo ""
     echo "⚠️  configure_runtime.sh reported a problem (e.g. a missing required value"
     echo "   like FRONTEND_BASE_URL). Set it and re-run ./main.sh ${ENV_MODE}."
@@ -206,7 +240,7 @@ echo "╔═══════════════════════�
 echo "║   Setup complete for ${ENV_MODE} — remaining manual steps"
 echo "╚══════════════════════════════════════════════════════════════════╝"
 echo "  1. Wire Pub/Sub to the real Cloud Run URL AFTER first deploy:"
-echo "       cd documentation/startup && ./wire_pubsub.sh ${ENV_MODE}"
+echo "       cd documentation/startup && ./main.sh wire ${ENV_MODE}"
 echo "  2. Configure the Dropbox webhook URI to the deployed service URL"
 echo "     (see external_services_setup.md §1.4)."
 echo "  3. Custom domain + DNS (if not using *..web.app): see §4, then set"

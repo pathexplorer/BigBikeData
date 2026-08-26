@@ -45,7 +45,7 @@ run_stage() {
 #touch "$STATE_FILE"
 #
 ## Handle a "reset" argument to clear the log
-## Run: ./start.sh reset
+## Run: ./main.sh dev reset
 #if [ "$1" == "reset" ]; then
 #    echo "Resetting state file..."
 #    > "$STATE_FILE" # This clears the file

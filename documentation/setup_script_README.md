@@ -11,11 +11,12 @@ Supports **dual-environment provisioning**: `prod` (production) and `dev` (devel
 > stages are exercised. Use this bootstrap when you need the dev/prod GCP layer
 > or Cloud Run deployment.
 
-## One-shot full setup (`main.sh`)
+## Single entry point (`main.sh`)
 
-**`main.sh` is the new top-level entry point** that replaces the old bare
-`start.sh` workflow. It guides you through the whole environment setup in three
-phases and never leaves you with a silent "everything is ready":
+**`main.sh` is the top-level entry point** — the only script you need to call.
+All internal scripts live in `scripts/` and are orchestrated by `main.sh`.
+It guides you through the whole environment setup in three phases and never
+leaves you with a silent "everything is ready":
 
 1. **Phase 1 — External Services wizard (interactive).** A guided walkthrough
    of [`external_services_setup.md`](external_services_setup.md): Dropbox,
@@ -23,8 +24,8 @@ phases and never leaves you with a silent "everything is ready":
    interactively and saved **encrypted (gpg)** to
    `.external_services.{env}.gpg` — never in plaintext. It ends with a summary
    table showing every configured variable and where it will be stored.
-2. **Phase 2 — Cloud bootstrap.** Delegates to `./start.sh {env}`.
-3. **Phase 3 — Runtime config.** Runs `./configure_runtime.sh {env} --apply`
+2. **Phase 2 — Cloud bootstrap.** Delegates to `scripts/start.sh {env}`.
+3. **Phase 3 — Runtime config.** Runs `scripts/configure_runtime.sh {env} --apply`
    (Firestore + generated `fullstack-app-json-keys` values) and uploads the
    wizard-collected external credentials into the `dropbox-secrets` and
    `fullstack-app-json-keys` Secret Manager secrets.
@@ -41,6 +42,15 @@ phases and never leaves you with a silent "everything is ready":
 ./main.sh dev --yes
 ```
 
+Subcommands (all through the same entrance):
+
+| Command                | Delegates to                    | Purpose                                     |
+|------------------------|---------------------------------|---------------------------------------------|
+| `setup` (default)      | `scripts/start.sh` + `scripts/configure_runtime.sh` | Full 3-phase environment setup |
+| `wire`                 | `scripts/wire_pubsub.sh`        | Post-deploy Pub/Sub wiring                  |
+| `runtime`              | `scripts/configure_runtime.sh`  | Runtime config preview / apply              |
+| `cleanup`              | `scripts/cleanup.sh`            | Remove all provisioned resources            |
+
 Re-running `main.sh` prefills every previously-entered value from the encrypted
 state file — only the Diff-vs-last-run questions are asked again.
 
@@ -53,10 +63,10 @@ state file — only the Diff-vs-last-run questions are asked again.
 
 ```bash
 # Provision production environment (will prompt for all settings)
-./start.sh prod
+./main.sh prod
 
 # Provision development environment (will prompt for all settings)
-./start.sh dev
+./main.sh dev
 ```
 
 On first run, the **Welcome Phase** will:
@@ -133,44 +143,44 @@ credentials are stored in the **combined `dropbox-secrets` secret** and the
 ## Usage
 
 ```bash
-# Provision production environment (default)
-./start.sh prod
+# Full guided setup (default command)
+./main.sh prod
 
 # Provision development environment
-./start.sh dev
+./main.sh dev
 
 # Restart from scratch (clears progress log)
-./start.sh prod reset
-./start.sh dev reset
+./main.sh prod reset
+./main.sh dev reset
 
 # Dry-run mode (no GCP changes)
-./start.sh dev --dry-run
+./main.sh dev --dry-run
 
 # Skip welcome phase (use existing keys.env only)
-./start.sh prod --no-welcome
+./main.sh prod --no-welcome
 
 # Non-interactive: auto-approve generated names without prompting.
 # Combine with --no-welcome and --dry-run for fully unattended runs (CI).
-./start.sh prod --no-welcome --dry-run --yes
+./main.sh prod --no-welcome --dry-run --yes
 ```
 
 > **Non-interactive runs:** the name-approval prompt prints a resource table and, on EOF/non-interactive
 > stdin, the script now **aborts** with a clear error instead of re-printing the table in an infinite loop.
-> Use `--yes` to auto-approve, or feed `Y` on stdin (e.g. `printf 'Y\n' | ./start.sh prod --no-welcome`).
+> Use `--yes` to auto-approve, or feed `Y` on stdin (e.g. `printf 'Y\n' | ./main.sh prod --no-welcome`).
 
 ## Cleanup (Optional)
 
-For CI/CD pipelines or failed runs, an optional cleanup script removes all created resources:
+For CI/CD pipelines or failed runs, an optional cleanup removes all created resources:
 
 ```bash
 # Preview what would be deleted (safe)
-./cleanup.sh dev --dry-run
+./main.sh cleanup dev --dry-run
 
 # Interactive cleanup
-./cleanup.sh dev
+./main.sh cleanup dev
 
 # Non-interactive (CI/CD)
-./cleanup.sh prod --yes
+./main.sh cleanup prod --yes
 ```
 
 The cleanup script:
@@ -196,7 +206,7 @@ Before provisioning, the script runs comprehensive pre-flight checks:
 
 Run validation independently:
 ```bash
-./start.sh dev --dry-run --no-welcome  # Runs validation in dry-run mode
+./main.sh dev --dry-run --no-wizard --no-welcome  # Runs validation in dry-run mode
 ```
 
 ## What it does (stages)
@@ -215,7 +225,7 @@ Run validation independently:
 | 5b    | Create Deployer SA     | Creates the CI/CD deployer SA (`bike-ci-deployer`) and binds `run.admin`, `artifactregistry.writer`, `storage.objectViewer`, `logging.logWriter`, `serviceAccountUser` on the Run SA, `objectAdmin`+`admin` on the build bucket, plus `serviceAccountUser` for `MY_USER_ACCOUNT` (needed by `power_core_run.sh` / `site_handler_run.sh`) |
 | 6     | Create Secrets        | Creates secrets in Secret Manager: a **combined Dropbox+Strava secret** and a **fullstack JSON keys secret** (with placeholder values) |
 | 7     | Bind IAM Roles        | Assigns roles to SAs, compute engine, and user account; grants impersonation roles; verifies secret access bindings |
-| 8     | Pub/Sub Setup         | Creates public topic (`GCP_TOPIC_NAME`) and private topic (`DROPBOX_TOPIC_NAME`) + their dead-letter topics, the Eventarc SA, grants `eventarc.eventReceiver` + `iam.serviceAccountTokenCreator` to the Pub/Sub agent, and creates the **private push subscription** (placeholder URL). The Eventarc trigger + real push URL are wired after first deploy via `./wire_pubsub.sh` |
+| 8     | Pub/Sub Setup         | Creates public topic (`GCP_TOPIC_NAME`) and private topic (`DROPBOX_TOPIC_NAME`) + their dead-letter topics, the Eventarc SA, grants `eventarc.eventReceiver` + `iam.serviceAccountTokenCreator` to the Pub/Sub agent, and creates the **private push subscription** (placeholder URL). The Eventarc trigger + real push URL are wired after first deploy via `./main.sh wire` |
 | 9     | Artifact Registry     | Creates a Docker repository and configures Docker auth |
 | 11    | JSON Credentials      | **Optional** — downloads a key file for the Run SA only if `GOOGLE_APPLICATION_CREDENTIALS` is set |
 | 12    | Create Firestore      | Creates a Firestore database in the specified region |
@@ -224,7 +234,7 @@ Run validation independently:
 > Stage 10 is omitted intentionally — numbering matches the original deployment plan.
 > Stage 6 (secrets) intentionally runs **before** Stage 7 (IAM binding + verification), because the access verification in Stage 7 reads the secrets and binding roles requires the secrets to already exist. If you have an old `script_progress.log`, remove it (or re-run with `reset`) so the renumbered stages take effect.
 
-## Post-deploy Pub/Sub wiring (`wire_pubsub.sh`)
+## Post-deploy Pub/Sub wiring (`./main.sh wire`)
 
 The push subscription and the Eventarc trigger both need the **Cloud Run service URL**, which only
 exists **after the first deploy** (`power_core_run.sh`). The bootstrap therefore creates:
@@ -237,7 +247,7 @@ exists **after the first deploy** (`power_core_run.sh`). The bootstrap therefore
 Once the first deploy succeeds, run:
 
 ```bash
-./wire_pubsub.sh dev     # or prod
+./main.sh wire dev     # or prod
 ```
 
 This auto-detects the Cloud Run URL and:
@@ -250,10 +260,10 @@ It then reminds you to set `EVENTARC_SA` and `EVENTARC_TRIGGER` inside the
 
 ## Runtime Configuration After Bootstrap
 
-`start.sh` provisions infrastructure and creates the two application secrets
-with placeholder values. It does not obtain credentials from Dropbox, Strava,
-Brevo, SMTP, Wahoo, or ngrok — those external credentials are prepared
-separately (see [`external_services_setup.md`](external_services_setup.md)) and
+`main.sh` (via `scripts/start.sh`) provisions infrastructure and creates the two
+application secrets with placeholder values. It does not obtain credentials
+from Dropbox, Strava, Brevo, SMTP, Wahoo, or ngrok — those external credentials
+are prepared separately (see [`external_services_setup.md`](external_services_setup.md)) and
 stored into the secrets after bootstrap.
 
 The naming stage generates more values than are needed during resource
@@ -264,11 +274,12 @@ resources, Artifact Registry, Cloud Run services, and Eventarc resources.
 After bootstrap, prepare the runtime layers with:
 
 ```bash
-./configure_runtime.sh dev --dry-run
-./configure_runtime.sh dev --apply
+./main.sh runtime dev --dry-run
+./main.sh runtime dev --apply
 ```
 
-Use `prod` instead of `dev` for production. The script is safe to re-run. By
+(`runtime` delegates to the internal `scripts/configure_runtime.sh`.) Use
+`prod` instead of `dev` for production. The script is safe to re-run. By
 default it performs no cloud writes. With `--apply` it writes generated
 non-secret values to `config/local/settings/data` in Firestore and creates a
 new version of the generated `fullstack-app-json-keys` secret containing the
@@ -373,6 +384,7 @@ of truth; this README does not duplicate its tables.
 
 ## Extending
 
+- `main.sh` is the only public entry point; it dispatches subcommands to `scripts/*.sh`
 - Place reusable functions in `lib/*.sh`
 - Place addon modules in `addons/*.sh`
 - Deprecated modules are in `lib/deprecated/`

@@ -339,7 +339,7 @@ else:
 For integration testing with real GCP services (Cloud Run behavior, real Pub/Sub, real Secret Manager latency):
 
 **Prerequisites:**
-- Dev project `bigbikedata-dev-power-core` already provisioned (run `./start.sh dev` — see [GCP Project Bootstrap](#gcp-project-bootstrap))
+- Dev project `bigbikedata-dev-power-core` already provisioned (run `./main.sh dev` — see [GCP Project Bootstrap](#gcp-project-bootstrap))
 - `gcloud auth application-default login` completed
 - Real dev secrets populated in Secret Manager
 
@@ -786,11 +786,14 @@ done by the bootstrap script in `documentation/startup/` (full reference:
 
 ```bash
 cd documentation/startup
-./start.sh prod    # provision production environment
-./start.sh dev     # provision development environment
+./main.sh prod    # provision production environment
+./main.sh dev     # provision development environment
 ```
 
-Command-line options: `[prod|dev] [reset] [--dry-run|-n] [--no-welcome]`.
+`main.sh` is the single entry point for the whole startup folder — it runs the
+external-services wizard, the bootstrap, and the runtime config. Command-line
+options: `[prod|dev] [setup|wire|runtime|cleanup] [reset] [--dry-run|-n]
+[--no-welcome] [--no-wizard] [--yes]`.
 
 **What you actually need to provide — only your email.**
 
@@ -856,8 +859,8 @@ After the bootstrap completes, run the idempotent runtime configuration helper:
 
 ```bash
 cd documentation/startup
-./configure_runtime.sh dev --dry-run
-./configure_runtime.sh dev --apply
+./main.sh runtime dev --dry-run
+./main.sh runtime dev --apply
 ```
 
 Use `prod` instead of `dev` for production. The helper prepares the generated

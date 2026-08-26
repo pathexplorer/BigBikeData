@@ -10,7 +10,7 @@
 #   2. Grant the Eventarc SA roles/run.invoker on the Cloud Run service
 #   3. Create the Eventarc trigger for the public topic
 #
-# Usage:
+# Usage (internal — public entrance is `./main.sh wire`):
 #   ./wire_pubsub.sh [dev|prod] [--dry-run|-n]
 #
 # The Cloud Run URL is auto-detected via `gcloud run services describe`, or can
@@ -18,7 +18,7 @@
 # =============================================================================
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_MODE="${1:-dev}"
 DRY_RUN=false
 [[ "$2" == "--dry-run" || "$2" == "-n" ]] && DRY_RUN=true
@@ -30,16 +30,16 @@ if [[ "$ENV_MODE" != "prod" && "$ENV_MODE" != "dev" ]]; then
 fi
 
 # --- Load libraries (naming + utils) ---
-for f in "$SCRIPT_DIR"/lib/utils.sh "$SCRIPT_DIR"/lib/naming_convention.sh; do
+for f in "$ROOT_DIR"/lib/utils.sh "$ROOT_DIR"/lib/naming_convention.sh; do
     # shellcheck disable=SC1090
     source "$f"
 done
 
 # --- Load keys.env for ORG_PREFIX / APP_NAME / GCP_PROJECT_ID ---
-VENV_PATH="$SCRIPT_DIR/../../power_core/.venv"
+VENV_PATH="$ROOT_DIR/../../power_core/.venv"
 ENV_FILE="$VENV_PATH/../keys.env.${ENV_MODE}"
 if [[ ! -f "$ENV_FILE" ]]; then
-    ENV_FILE="$SCRIPT_DIR/../../power_core/keys.env.${ENV_MODE}"
+    ENV_FILE="$ROOT_DIR/../../power_core/keys.env.${ENV_MODE}"
 fi
 if [[ ! -f "$ENV_FILE" ]]; then
     echo "🯀 ERROR: Environment file not found: $ENV_FILE"
@@ -56,7 +56,7 @@ set +a
 generate_and_export_names "${ENV_MODE}" "${ORG_PREFIX}" "${APP_NAME}"
 
 # Also load names.env if present (GCP_PROJECT_NUMBER etc.)
-NAMES_ENV_FILE="$SCRIPT_DIR/names.env"
+NAMES_ENV_FILE="$ROOT_DIR/names.env"
 if [[ -f "$NAMES_ENV_FILE" ]]; then
     echo "Loading recorded resource names from $NAMES_ENV_FILE..."
     set -a

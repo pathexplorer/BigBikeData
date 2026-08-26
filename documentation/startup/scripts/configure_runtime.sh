@@ -5,7 +5,7 @@
 # credentials with placeholders.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_MODE="${1:-}"
 APPLY=false
 
@@ -32,8 +32,8 @@ fi
 ENV_FILE=""
 for candidate in \
     "${VIRTUAL_ENV:-}/../keys.env.${ENV_MODE}" \
-    "$SCRIPT_DIR/../../power_core/keys.env.${ENV_MODE}" \
-    "$SCRIPT_DIR/../../keys.env.${ENV_MODE}"; do
+    "$ROOT_DIR/../../power_core/keys.env.${ENV_MODE}" \
+    "$ROOT_DIR/../../keys.env.${ENV_MODE}"; do
     if [[ -f "$candidate" ]]; then
         ENV_FILE="$candidate"
         break
@@ -48,19 +48,19 @@ fi
 set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
-if [[ -f "$SCRIPT_DIR/names.env" ]]; then
+if [[ -f "$ROOT_DIR/names.env" ]]; then
     # shellcheck disable=SC1091
-    source "$SCRIPT_DIR/names.env"
+    source "$ROOT_DIR/names.env"
 fi
 set +a
 
 # Recreate deterministic values so this script also works with an older names.env.
 # shellcheck disable=SC1091
-source "$SCRIPT_DIR/lib/utils.sh"
+source "$ROOT_DIR/lib/utils.sh"
 # shellcheck disable=SC1091
-source "$SCRIPT_DIR/lib/naming_convention.sh"
+source "$ROOT_DIR/lib/naming_convention.sh"
 generate_and_export_names "$ENV_MODE" "${ORG_PREFIX:?ORG_PREFIX is required}" "${APP_NAME:?APP_NAME is required}"
-persist_generated_names "$SCRIPT_DIR/names.env"
+persist_generated_names "$ROOT_DIR/names.env"
 
 GCP_PROJECT_ID="${GCP_PROJECT_ID:-${GEN_NAME_PROJECT}}"
 GCP_PROJECT_NUMBER="${GCP_PROJECT_NUMBER:-}"
@@ -174,9 +174,9 @@ echo "Runtime configuration: $ENV_MODE"
 echo "Project: $GCP_PROJECT_ID"
 echo
 if [[ "$APPLY" == true ]]; then
-    echo "Generated values persisted in: $SCRIPT_DIR/names.env"
+    echo "Generated values persisted in: $ROOT_DIR/names.env"
 else
-    echo "Generated values would be persisted in: $SCRIPT_DIR/names.env"
+    echo "Generated values would be persisted in: $ROOT_DIR/names.env"
 fi
 echo "Firestore payload prepared: $FIRESTORE_PAYLOAD"
 echo "Fullstack secret payload prepared with generated application values."
@@ -220,7 +220,7 @@ fi
 
 # Write Firestore document via REST API (gcloud firestore documents not available).
 # Implemented as a standalone module: lib/firestore_writer.py
-python3 "$SCRIPT_DIR/lib/firestore_writer.py" \
+python3 "$ROOT_DIR/lib/firestore_writer.py" \
     --payload "$FIRESTORE_PAYLOAD" \
     --project "$GCP_PROJECT_ID" \
     --document-path "config/local/settings/data"

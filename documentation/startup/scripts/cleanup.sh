@@ -2,11 +2,11 @@
 
 # Optional Cleanup Script
 # Removes resources created by start.sh for a specific environment
-# Usage: ./cleanup.sh [prod|dev] [--dry-run] [--yes]
+# Usage (internal — public entrance is `./main.sh cleanup`): ./cleanup.sh [prod|dev] [--dry-run] [--yes]
 
 set -euo pipefail
 
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # --- Parse arguments ---
 ENV_MODE="prod"
@@ -37,14 +37,14 @@ if [[ "$DRY_RUN" == "true" ]]; then
 fi
 
 # --- Load environment ---
-source "${SCRIPT_DIR}/lib/utils.sh"
+source "${ROOT_DIR}/lib/utils.sh"
 
-ENV_FILE="$VIRTUAL_ENV/../keys.env.${ENV_MODE}"
+ENV_FILE="${VIRTUAL_ENV:-}/../keys.env.${ENV_MODE}"
 if [ ! -f "$ENV_FILE" ]; then
-    ENV_FILE="$(dirname "$VIRTUAL_ENV")/keys.env.${ENV_MODE}"
+    ENV_FILE="$(dirname "${VIRTUAL_ENV:-}")/keys.env.${ENV_MODE}"
 fi
 if [ ! -f "$ENV_FILE" ]; then
-    ENV_FILE="$SCRIPT_DIR/../../power_core/keys.env.${ENV_MODE}"
+    ENV_FILE="$ROOT_DIR/../../power_core/keys.env.${ENV_MODE}"
 fi
 
 if [ ! -f "$ENV_FILE" ]; then
@@ -58,7 +58,7 @@ source "$ENV_FILE"
 set +a
 
 # Load generated names
-NAMES_ENV_FILE="${SCRIPT_DIR}/names.env"
+NAMES_ENV_FILE="${ROOT_DIR}/names.env"
 if [ -f "$NAMES_ENV_FILE" ]; then
     echo "Loading resource names from $NAMES_ENV_FILE..."
     set -a
@@ -67,7 +67,7 @@ if [ -f "$NAMES_ENV_FILE" ]; then
 fi
 
 # Regenerate names to ensure we have all variables
-source "${SCRIPT_DIR}/lib/naming_convention.sh"
+source "${ROOT_DIR}/lib/naming_convention.sh"
 generate_and_export_names "${ENV_MODE}" "${ORG_PREFIX}" "${APP_NAME}"
 
 # Derive deployer SA email (matches start.sh logic)

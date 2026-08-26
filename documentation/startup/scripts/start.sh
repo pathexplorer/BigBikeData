@@ -52,11 +52,11 @@ if [ "$DRY_RUN" = true ]; then
 fi
 
 # --- Load core libraries first (needed for welcome phase) ---
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-source "${SCRIPT_DIR}/lib/utils.sh"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/lib/utils.sh"
 
 # --- Load welcome phase library ---
-source "${SCRIPT_DIR}/lib/welcome.sh"
+source "${ROOT_DIR}/lib/welcome.sh"
 
 # --- load environment file ---
 # Use environment-specific keys.env file
@@ -67,7 +67,7 @@ if [ ! -f "$ENV_FILE" ]; then
     ENV_FILE="$(dirname "$VIRTUAL_ENV")/keys.env.${ENV_MODE}"
 fi
 if [ ! -f "$ENV_FILE" ]; then
-    ENV_FILE="$SCRIPT_DIR/../../power_core/keys.env.${ENV_MODE}"
+    ENV_FILE="$ROOT_DIR/../../power_core/keys.env.${ENV_MODE}"
 fi
 
 if [ -f "$ENV_FILE" ]; then
@@ -134,8 +134,8 @@ export ENV_MODE
 echo "Loading dependencies..."
 load_variables_to_main() {
     local catalog=$1
-    SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-    LIB_DIR="${SCRIPT_DIR}/${catalog}"
+    ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    LIB_DIR="${ROOT_DIR}/${catalog}"
     if [ -d "$LIB_DIR" ]; then
         echo "Loading library functions from $LIB_DIR..." >&2
         for script_file in "$LIB_DIR"/*.sh; do
@@ -170,7 +170,7 @@ run_stage "stage_V_PREFLIGHT_VALIDATION"
 # Load previously recorded resource values (names.env) so a resumed run still
 # has GCP_PROJECT_ID/GCP_PROJECT_NUMBER etc. even when the earlier stages that
 # record them (e.g. stage_3) are skipped by the progress log.
-NAMES_ENV_FILE="names.env"
+NAMES_ENV_FILE="$ROOT_DIR/names.env"
 if [ -f "$NAMES_ENV_FILE" ]; then
     echo "Loading previously recorded resource names from $NAMES_ENV_FILE..."
     set -a

@@ -7,10 +7,10 @@ hosting (Firebase Hosting + custom domain)**. A separate section covers the
 
 > **Read this BEFORE the cloud bootstrap.** Every value listed here is a
 > per-environment, manually-obtained credential (or account decision) that the
-> cloud setup (`start.sh`) and runtime configuration
-> (`configure_runtime.sh`) depend on. Gather them first, then provision the
-> cloud project. The full variable registry and storage layers live in
-> [`config-manifest.md`](config-manifest.md).
+> cloud setup (`main.sh` → `scripts/start.sh`) and runtime configuration
+> (`main.sh` → `scripts/configure_runtime.sh`) depend on. Gather them first,
+> then provision the cloud project. The full variable registry and storage
+> layers live in [`config-manifest.md`](config-manifest.md).
 >
 > **This document is written for a NEW user spinning up their own project.**
 > All concrete names (e.g. `bigbikedata-prod`, `app.bigbikedata.com`,
@@ -275,7 +275,8 @@ ngrok is a **local-only** dependency; its token is never stored in the cloud.
 
 ## 6. Pre-flight checklist — gather ALL of this before cloud setup
 
-Before running `./start.sh {env}` and then `./configure_runtime.sh {env} --apply`,
+Before running `./main.sh {env}` (which internally runs
+`scripts/start.sh {env}` and `scripts/configure_runtime.sh {env} --apply`),
 prepare the following per environment. Values marked **keys.env** belong in
 `keys.env.{env}` (next to the virtualenv); the rest go into the Secret Manager
 secrets named in **stored in**.
