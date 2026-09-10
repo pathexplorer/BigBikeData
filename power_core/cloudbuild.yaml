@@ -19,9 +19,15 @@ steps:
       - '--image=${_YAML_IMAGE}'
       - '--region=${_REGION}'
       - '--platform=managed'
-      - '--network=default'
-      - '--subnet=default'
-      - '--vpc-egress=all-traffic'
+      # NOTE: no --network/--subnet/--vpc-egress here on purpose. The dev
+      # backend needs nothing inside any VPC (see Testing notes), and those
+      # flags once silently re-attached Direct VPC egress on every deploy,
+      # blackholing Dropbox/Strava/Brevo traffic. A prod deploy that needs
+      # VPC (private Cloud SQL) must pass them explicitly on the gcloud
+      # command line instead of baking them into this file.
+      - '--memory=2Gi'
+      # NOTE: 512Mi OOM-kills parallel pipeline runs (pandas/numpy/fitdecode);
+      # keep 2Gi so a sync burst survives. Scale-to-zero keeps idle cost at 0.
       - '--service-account=${_S_ACCOUNT_RUN}'
       # Use a multiline block for --set-env-vars for readability.
       # The '|' tells YAML to treat the indented block as a single string.

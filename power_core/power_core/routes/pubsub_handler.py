@@ -9,6 +9,7 @@ from google.cloud.firestore import SERVER_TIMESTAMP
 from gcp_actions.client import get_any_client
 from gcp_actions.firestore_box.json_manipulations import FirestoreMagic
 from power_core.workshop.workers import ActivityProcessingPipeline
+from power_core.dropbox_usage.get_from_dropbox import DropboxFileMarkers
 
 logger = logging.getLogger(__name__)
 
@@ -58,12 +59,22 @@ def check_and_mark_processed(idempotency_key: str, collection_name: str, ttl_hou
         return True
 
 
-def execute_pipeline(pipeline_instance, method_name: str, upload_id: str, collection_name: str):
+def execute_pipeline(pipeline_instance, method_name: str, upload_id: str, collection_name: str, file_key=None, marker_store=None):
     """Run the pipeline method and record completion/failure status in Firestore.
 
     Returns a 200 to Pub/Sub on processing errors so logic bugs are acknowledged instead of retried forever.
     """
     fm = FirestoreMagic(collection_name, upload_id)
+    markers = marker_store or (DropboxFileMarkers() if file_key else None)
+
+    def mark(status):
+        """Best-effort terminal marker; never changes the ack outcome."""
+        if markers is None or file_key is None:
+            return
+        try:
+            markers.mark_final(file_key, status, upload_id)
+        except Exception as e:
+            logger.error(f"Marker update failed for {file_key}: {e}")
 
     try:
         # Dynamically call the method (run_full_pipeline or run_repair_flow)
@@ -76,6 +87,7 @@ def execute_pipeline(pipeline_instance, method_name: str, upload_id: str, collec
             'result': {'result': result} if result else {}
         }
         fm.update_firejson(success_payload)
+        mark("completed")
         logger.debug(f"✅ Successfully processed {upload_id}")
         return "", 204
 
@@ -89,6 +101,7 @@ def execute_pipeline(pipeline_instance, method_name: str, upload_id: str, collec
             'error': error_msg
         }
         fm.update_firejson(fail_payload)
+        mark("failed")
         # We return 200 to Pub/Sub to acknowledge receipt so it doesn't retry a logic error forever
         return "Processing failed", 200
 
@@ -139,7 +152,10 @@ def handle_message(style_pipeline: str):
 
         # 6. Instantiate and Execute
         pipeline = ActivityProcessingPipeline(**pipeline_kwargs)
-        return execute_pipeline(pipeline, config['method'], upload_id, config['collection'])
+        return execute_pipeline(
+            pipeline, config['method'], upload_id, config['collection'],
+            file_key=payload.get('file_key'),
+        )
 
     except Exception as e:
         logger.error(f"Critical error in handle_message: {e}", exc_info=True)

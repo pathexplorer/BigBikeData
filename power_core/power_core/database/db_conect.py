@@ -32,15 +32,16 @@ logger = logging.getLogger(__name__)
 #         logger.error(f"Error connecting to PostgreSQL database: {connection_uri}")
 
 
-def connect_to_db():
-    """Establishes a connection to the PostgreSQL database."""
+def connect_to_db(timeout=5):
+    """Connect to PostgreSQL, failing fast (never stall callers on dead hosts)."""
     try:
         conn = psycopg.connect(
             host=os.environ.get("PG_HOST", "localhost"),
             port=os.environ.get("PG_PORT", 5432),
             dbname=os.environ.get("PG_DATABASE", "postgres"),
             user=os.environ.get("PG_USER", "postgres"),
-            password=os.environ.get("PG_PASS", "")
+            password=os.environ.get("PG_PASS", ""),
+            connect_timeout=timeout,
         )
         conn.autocommit = True
         logger.info("Database connection established.")

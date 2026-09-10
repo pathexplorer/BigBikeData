@@ -145,6 +145,30 @@ cd power_core
 | `tests/test_firestore_writer.py` | `documentation/startup/lib/firestore_writer.py` — Firestore value mapping, repeated `updateMask.fieldPaths` params (regression: comma-joined mask → 400), loud failure on HTTP errors |
 | `tests/test_transfer_webhook.py` | `routes/transfer.py` webhook — GET accepted alongside POST (regression: Dropbox verification GET returned 405), challenge echo, 400 without challenge |
 | `tests/test_packaging.py` | Build-input guards — no absolute host paths in `requirements.txt`, relative `./gcp_actions`, `libpq-dev` instead of the nonexistent `libpq` package |
+| `tests/test_dropbox_sync.py` | Sync accountability — stable per-file ids (`id:rev`), marker skip/retry policy, cursor kept on publish failure, stale sweep with dead-lettering (regression: lost files and mass reprocessing) |
+| `tests/test_egress_transport.py` | Resilient Dropbox transport — adapter wiring, walk-all-addresses dialing, AF fallthrough, session carried into client, egress self-diagnostics (regression: dead edge IPs stalling sync) |
+| `tests/test_pipeline_filenames.py` | Filename strategy — spaces become underscores, ASCII names pass through, non-ASCII rejected downstream with a clear error |
+
+### Manual end-to-end testing
+
+The two pipelines are independent — test each through its own entry:
+
+```bash
+# Private (Dropbox) pipeline: drop a file into the watched folder.
+# Name test files wahoo_XXXX.fit (vary only XXXX) to tell runs apart
+# in logs and Firestore. Wahoo files are plain ASCII (spaces aside);
+# hand-made non-ASCII names fail the CLI safety check with a clear
+# Stage 2 error instead of silently corrupting output.
+
+# Public (friends window) pipeline: post directly, no Dropbox involved.
+curl -F "file=@wahoo_0001.fit" -F "email_address=develop@offteleport.cloud" \
+  https://bigbikedata-dev-power-core--dev-app-tbe0mq79.web.app/upload
+```
+
+Dropping files into Dropbox is slow and stateful (webhook lag, cursor
+position, backlog replays) — use it for webhook/sync tests only. For
+iterating on processing itself, prefer `/upload`: stateless, immediate,
+plus the email with the download link on success.
 
 ## Configuration Architecture
 

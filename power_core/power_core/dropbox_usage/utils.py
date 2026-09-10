@@ -2,6 +2,7 @@
 import dropbox
 from dropbox.exceptions import AuthError
 from power_core.project_env.config import s_email_dropbox, SEC_DROPBOX, GCP_PROJECT_ID
+from power_core.dropbox_usage.egress_transport import resilient_session
 import hmac, hashlib
 from flask import request, Response
 import logging
@@ -41,10 +42,13 @@ class DropboxAuth:
 
             logger.debug("Attempting to authorize with Dropbox...")
             try:
+                # Resilient session: Dropbox DNS rotates edge IPs, some of
+                # which are unreachable from us-central1; walk them all.
                 dbx = dropbox.Dropbox(
                     app_key=self.DROPBOX_APP_KEY,
                     app_secret=self.DROPBOX_APP_SECRET,
-                    oauth2_refresh_token=self.DROPBOX_REFRESH_TOKEN
+                    oauth2_refresh_token=self.DROPBOX_REFRESH_TOKEN,
+                    session=resilient_session(),
                 )
                 dbx.users_get_current_account()
                 logger.debug("Dropbox authorization successful.")
