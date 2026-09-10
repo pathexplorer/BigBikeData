@@ -14,11 +14,11 @@ If --token is omitted, it is obtained via `gcloud auth print-access-token`.
 
 import argparse
 import json
-import os
 import subprocess
 import sys
-import tempfile
+import urllib.error
 import urllib.parse
+import urllib.request
 
 FIRESTORE_API = "https://firestore.googleapis.com/v1"
 
@@ -68,35 +68,29 @@ def write_document(payload_path, project_id, document_path, token=None):
         "fields": {k: to_firestore_value(v) for k, v in data.items()}
     }
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
-        json.dump(document, tmp)
-        tmp_path = tmp.name
-
+    token = token or get_access_token()
+    encoded_path = urllib.parse.quote(document_path, safe="/")
+    # updateMask accepts one fieldPaths per query param, so repeat it per key.
+    query = urllib.parse.urlencode(
+        [("updateMask.fieldPaths", key) for key in data.keys()]
+    )
+    url = (
+        f"{FIRESTORE_API}/projects/{project_id}/databases/(default)/"
+        f"documents/{encoded_path}?{query}"
+    )
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(document).encode("utf-8"),
+        method="PATCH",
+        headers={"Authorization": f"Bearer {token}",
+                 "Content-Type": "application/json"},
+    )
     try:
-        token = token or get_access_token()
-        encoded_path = urllib.parse.quote(document_path, safe="/")
-        url = (
-            f"{FIRESTORE_API}/projects/{project_id}/databases/(default)/"
-            f"documents/{encoded_path}"
-            f"?updateMask.fieldPaths={','.join(data.keys())}"
-        )
-        result = subprocess.run(
-            [
-                "curl", "-sS", "-X", "PATCH",
-                "-H", f"Authorization: Bearer {token}",
-                "-H", "Content-Type: application/json",
-                "-d", f"@{tmp_path}",
-                url,
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            sys.exit(f"Firestore write failed: {result.stderr}")
-        return result.stdout
-    finally:
-        os.unlink(tmp_path)
+        with urllib.request.urlopen(request) as response:
+            return response.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        sys.exit(f"Firestore write failed ({exc.code}): {body}")
 
 
 def main():

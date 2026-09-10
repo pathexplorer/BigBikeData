@@ -129,6 +129,22 @@ The `ActivityProcessingPipeline` class (`workshop/workers.py`) orchestrates the 
 | `power_core/utilites/email_sender.py` | SMTP & Brevo API email sending |
 | `power_core/project_env/config.py` | Central environment variable loading |
 | `power_core/templates/` | HTML email templates |
+| `tests/` | pytest suite (see [Testing](#testing)) |
+
+## Testing
+
+```bash
+cd power_core
+.venv/bin/python -m pytest tests/ -q
+```
+
+(`pytest` lives in `.venv`; if missing: `.venv/bin/python -m pip install pytest`.)
+
+| File | Covers |
+|------|--------|
+| `tests/test_firestore_writer.py` | `documentation/startup/lib/firestore_writer.py` — Firestore value mapping, repeated `updateMask.fieldPaths` params (regression: comma-joined mask → 400), loud failure on HTTP errors |
+| `tests/test_transfer_webhook.py` | `routes/transfer.py` webhook — GET accepted alongside POST (regression: Dropbox verification GET returned 405), challenge echo, 400 without challenge |
+| `tests/test_packaging.py` | Build-input guards — no absolute host paths in `requirements.txt`, relative `./gcp_actions`, `libpq-dev` instead of the nonexistent `libpq` package |
 
 ## Configuration Architecture
 

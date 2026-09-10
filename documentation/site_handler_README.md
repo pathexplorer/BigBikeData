@@ -51,6 +51,20 @@ User ──► Firebase Hosting ──► site_handler (Cloud Run) ──► Pub
 | `site_handler/utilites/site_config.py` | Environment variable loading for the frontend |
 | `site_handler/templates/` | Jinja2 templates (`index.html`, `success.html`, `500.html`, `404_expired.html`) |
 | `site_handler/static/` | Static assets (CSS, JS, favicon, robots.txt, 404 fallback) |
+| `tests/` | pytest suite (see [Testing](#testing)) |
+
+## Testing
+
+```bash
+cd site_handler
+.venv/bin/python -m pytest tests/ -q
+```
+
+(`pytest` lives in `.venv`; if missing: `.venv/bin/python -m pip install pytest`.)
+
+| File | Covers |
+|------|--------|
+| `tests/test_defender.py` | `route_site/defender.py` — missing `ALLOWED_DOMAINS` fails closed (empty allowlist, 403s) instead of crashing the import with `AttributeError` (regression: full-frontend 503); allowlist normalization (case/port/empties); `run.app` direct access stays blocked |
 
 ## Configuration
 

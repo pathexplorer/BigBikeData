@@ -5,7 +5,7 @@ google-cloud-logging
 google-auth
 google-cloud-firestore
 git+https://github.com/pathexplorer/fit2gpx.git@first
--e /home/stas/projects/main/gcp_actions
+./gcp_actions[processing-worker]
 gpxpy
 numpy
 pandas

@@ -14,9 +14,16 @@ bp2 = Blueprint("transfer", __name__)
 bp3 = Blueprint("public_processing", __name__)
 bp_private = Blueprint("private_processing", __name__)
 
-@bp2.route(f'/{DROpbox_WEBHOOK_PATH}', methods=['POST'])
+@bp2.route(f'/{DROpbox_WEBHOOK_PATH}', methods=['GET', 'POST'])
 def dropbox_webhook():
     """PRODUCER endpoint: verify Dropbox signature, then trigger the sync process."""
+    if request.method == 'GET':
+        # Dropbox webhook verification: echo the challenge back as plain text.
+        challenge = request.args.get('challenge')
+        if challenge:
+            logger.info(f"Responding to Dropbox challenge: {challenge}")
+            return Response(challenge, headers={'Content-Type': 'text/plain'})
+        return "No challenge parameter", 400
     da = DropboxAuth()
     if not da.check_signature():
         return Response("Forbidden", status=403)

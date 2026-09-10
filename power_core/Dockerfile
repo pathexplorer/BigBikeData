@@ -11,7 +11,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     git \
     build-essential  \
-    libpq && \
+    libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy local package first
