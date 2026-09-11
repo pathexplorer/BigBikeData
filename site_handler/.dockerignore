@@ -1,0 +1,9 @@
+# Cloud Build upload ignore list for site_handler.
+# Without this file `gcloud builds submit --ignore-file=.dockerignore` fails
+# and the multi-GB .venv would be uploaded as build context.
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+logs/
+.git/

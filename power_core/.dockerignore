@@ -1,0 +1,14 @@
+# Cloud Build upload ignore list for power_core.
+# Without this file `gcloud builds submit --ignore-file=.dockerignore` fails
+# and the multi-GB .venv would be uploaded as build context.
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+logs/
+_local_tests/
+*.egg-info/
+.emulator_data/
+.emulator_data.enc/
+.emulator_data_fs/
+.git/

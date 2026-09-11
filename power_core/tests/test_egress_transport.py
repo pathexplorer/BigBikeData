@@ -181,7 +181,7 @@ def test_auth_dropbox_uses_resilient_session(monkeypatch):
             return self
 
     monkeypatch.setattr(dropbox_utils, "SecretManagerClient", FakeSecrets)
-    monkeypatch.setattr(dropbox_utils, "connect_to_db", lambda: None)
+    monkeypatch.setattr(dropbox_utils, "_maybe_preflight_db", lambda: None)
     monkeypatch.setattr(dropbox_utils.dropbox, "Dropbox", FakeDropbox)
     # DropboxAuth is lru_cache-wrapped; clear it for test isolation.
     dropbox_utils.DropboxAuth.cache_clear()

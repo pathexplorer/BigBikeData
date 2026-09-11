@@ -1,9 +1,27 @@
-"""PostgreSQL connectivity and streaming ingestion helpers built on Psycopg 3."""
+"""PostgreSQL connectivity and streaming ingestion helpers built on Psycopg 3.
+
+Temporarily DISABLED on dev (PG_ENABLED=false by default): all entry points
+return gracefully without touching the network or requiring the driver.
+See documentation/postgres_DISABLED.md for re-enable steps.
+"""
 import os
-import psycopg
-from psycopg import sql
 from urllib.parse import quote_plus
 from typing import Iterator, Optional
+
+
+def is_pg_enabled() -> bool:
+    """Return True only when Postgres writes are explicitly enabled."""
+    return os.environ.get("PG_ENABLED", "false").strip().lower() in (
+        "1", "true", "yes", "enable", "enabled",
+    )
+
+
+try:
+    import psycopg
+    from psycopg import sql
+except ImportError:  # dev without PG driver / PG disabled
+    psycopg = None  # type: ignore
+    sql = None  # type: ignore
 
 
 import logging
@@ -33,7 +51,17 @@ logger = logging.getLogger(__name__)
 
 
 def connect_to_db(timeout=5):
-    """Connect to PostgreSQL, failing fast (never stall callers on dead hosts)."""
+    """Connect to PostgreSQL, failing fast (never stall callers on dead hosts).
+
+    Returns None immediately when PG is disabled (PG_ENABLED=false) or when
+    the psycopg driver is not installed. Callers must handle None.
+    """
+    if not is_pg_enabled():
+        logger.debug("PG disabled (PG_ENABLED!=true) — skipping DB connect.")
+        return None
+    if psycopg is None:
+        logger.warning("PG enabled but psycopg driver not installed — skipping DB connect.")
+        return None
     try:
         conn = psycopg.connect(
             host=os.environ.get("PG_HOST", "localhost"),
@@ -46,7 +74,9 @@ def connect_to_db(timeout=5):
         conn.autocommit = True
         logger.info("Database connection established.")
         return conn
-    except psycopg.OperationalError as e:
+    except Exception as e:
+        # psycopg.OperationalError is the expected path; catch-all keeps
+        # dev resilient when driver classes are unavailable (psycopg=None).
         logger.warning(f"Could not connect to database (local dev without PG?): {e}")
         return None
 
@@ -54,12 +84,20 @@ def connect_to_db(timeout=5):
 def load_stream_to_postgres(data_iterator: Iterator[tuple], table_name: str = "heatmap_test"):
     """
     Streams data directly into PostgreSQL using Psycopg 3's efficient copy writer.
+
+    No-op (returns 0) when PG is disabled. Returns streamed row count otherwise.
     """
+    if not is_pg_enabled():
+        logger.info("PG disabled (PG_ENABLED!=true) — skipping Postgres load.")
+        return 0
+    if psycopg is None or sql is None:
+        logger.warning("PG enabled but psycopg driver not installed — skipping Postgres load.")
+        return 0
     # Connection string (Libpq format is often preferred in Psycopg 3)
     user = os.environ.get("PG_USER")
     password = os.environ.get("PG_PASS")
     host = os.environ.get("PG_HOST")
-    print("HH", host)
+    logger.debug(f"Postgres load target host: {host} table: {table_name}")
     port = os.environ.get("PG_PORT")
     dbname = os.environ.get("PG_DATABASE")
     safe_password = quote_plus(password)
@@ -94,12 +132,10 @@ def load_stream_to_postgres(data_iterator: Iterator[tuple], table_name: str = "h
 
             # No manual commit needed if no exception raised (conn context manager handles it)
             logger.info(f"Streamed {count} records to PostgreSQL successfully.")
+            return count
 
-    except psycopg.Error as e:
-        logger.error(f"PostgreSQL Error: {e}")
-        raise
     except Exception as e:
-        logger.error(f"Pipeline Error: {e}")
+        logger.error(f"PostgreSQL/Pipeline Error: {e}")
         raise
 
 # # as table data

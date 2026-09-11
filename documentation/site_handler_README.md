@@ -150,6 +150,12 @@ The Cloud Run service id in the hosting rewrites is **injected at deploy time**:
 deploying, so the committed `firebase.json`/`firebase.dev.json` never go stale.
 The preview channel URL is printed after deployment. Share it for testing.
 
+Deploy notes: the script resolves venv/keys from its own directory (run from
+anywhere), submits Cloud Build with explicit `--project`, tags the image
+uniquely per deploy (`<branch>-YYYYMMDDHHMMSS`, override via
+`IMAGE_TAG_OVERRIDE`), and runs `firebase` with `--project ... --non-interactive`.
+Preview-channel expiry defaults to 7d (`FIREBASE_PREVIEW_EXPIRES=30d` to extend).
+
 > The Firebase project, custom-domain, DNS, and HTTPS setup — plus
 > `FRONTEND_BASE_URL` and `ALLOWED_DOMAINS` — are prepared **before** cloud
 > provisioning. See

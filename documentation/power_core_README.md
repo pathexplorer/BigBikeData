@@ -223,10 +223,14 @@ In production, the 4 pointer vars are set as Cloud Run env vars; locally,
   "S_ACCOUNT_DROPBOX": "local-dev@placeholder.iam.gserviceaccount.com",
   "S_ACCOUNT_RUN": "local-dev@placeholder.iam.gserviceaccount.com",
   "PG_HOST": "localhost",
+  "PG_ENABLED": "false",
   "DROPBOX_TOPIC_NAME": "dropbox-handler-testing",
   "LOGGING_LEVEL": "DEBUG"
 }
 ```
+
+> Postgres is temporarily disabled on dev (`PG_ENABLED=false`).
+> See `documentation/postgres_DISABLED.md` for what is gated and re-enable steps.
 
 ## Local Development
 
@@ -960,14 +964,17 @@ The script auto-detects the environment from the current Git branch:
 - **Any other branch** → Development
 
 Additional behavior of `./power_core_run.sh`:
-- `keys.env.{prod|dev}` must exist at the **repo root** (the script resolves it relative to the
-  venv at `../.venv`). Both the bootstrap script and `power_core_run.sh` read the same files.
-- In **dev** mode, `-dev` is appended to the service name, Artifact Registry, Pub/Sub topic,
-  subscription, `SEC_DROPBOX` and `S_ACCOUNT_DROPBOX`.
-- On **non-`main`/`master` branches** the branch name is appended to the Cloud Run service, e.g.
-  branch `testing` deploys to `power-core-dev-testing` (the auto/env suffix is applied first).
-- The image is tagged with the branch name and pushed to
-  `${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY}/${TARGET_SERVICE_NAME}:${BRANCH_NAME}`.
+- Paths resolve from the script's own directory: venv at `<service>/.venv`,
+  env at `<service>/keys.env.{prod|dev}` (gitignored). Run from any directory.
+- Submits with explicit `--project="${GCP_PROJECT_ID}"` (never ambient gcloud defaults).
+- Image tag is unique per deploy: `<branch>-YYYYMMDDHHMMSS`
+  (Artifact Registry immutable tags reject fixed branch tags).
+  Override with `IMAGE_TAG_OVERRIDE=...`.
+- On **non-`main`/`master` branches** the sanitized branch name is appended to the
+  Cloud Run service, e.g. branch `testing` deploys to `<svc>-testing`.
+  NOTE: on branch `develop` this targets `<svc>-develop`, not the existing dev
+  service — service-suffix naming is unchanged from before, adjust explicitly
+  until it is finalized.
 
 Deployed with Google Cloud Build:
 ```bash

@@ -14,5 +14,6 @@
   "GCS_BUCKET_NAME": "bigbikedata-dev-power-core-main-3eea25",
   "GCS_PUB_OUTPUT_BUCKET": "bigbikedata-dev-power-core-output-3eea25",
   "GCS_PUB_INPUT_BUCKET": "bigbikedata-dev-power-core-input-3eea25",
-  "GCS_BUILD_BUCKET": "bigbikedata-dev-power-core-build-3eea25"
+  "GCS_BUILD_BUCKET": "bigbikedata-dev-power-core-build-3eea25",
+  "PG_ENABLED": "false"
 }

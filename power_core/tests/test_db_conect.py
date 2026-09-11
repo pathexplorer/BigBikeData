@@ -20,6 +20,8 @@ class _FakeConn:
 
 def test_returns_none_on_operational_error(monkeypatch):
     """Unreachable DB degrades gracefully instead of raising."""
+    monkeypatch.setenv("PG_ENABLED", "true")
+
     def fail(**kwargs):
         raise psycopg.OperationalError("connection failed")
 
@@ -27,8 +29,21 @@ def test_returns_none_on_operational_error(monkeypatch):
     assert db_conect.connect_to_db() is None
 
 
+def test_returns_none_when_pg_disabled(monkeypatch):
+    """PG gate: disabled flag short-circuits without touching the driver."""
+    monkeypatch.setenv("PG_ENABLED", "false")
+
+    def fail(**kwargs):  # pragma: no cover - must not be called
+        raise AssertionError("driver must not be called when PG disabled")
+
+    monkeypatch.setattr(db_conect.psycopg, "connect", fail)
+    assert db_conect.connect_to_db() is None
+    assert db_conect.load_stream_to_postgres(iter([])) == 0
+
+
 def test_connect_timeout_defaults_to_fast_fail(monkeypatch):
     """The driver gets a short connect timeout unless overridden."""
+    monkeypatch.setenv("PG_ENABLED", "true")
     captured = {}
 
     def record(**kwargs):
@@ -45,6 +60,7 @@ def test_connect_timeout_defaults_to_fast_fail(monkeypatch):
 
 def test_forwards_env_credentials(monkeypatch):
     """Host/port/dbname/user/password come from the environment."""
+    monkeypatch.setenv("PG_ENABLED", "true")
     captured = {}
 
     def record(**kwargs):

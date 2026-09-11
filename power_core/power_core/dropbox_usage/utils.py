@@ -10,8 +10,21 @@ import os
 from functools import lru_cache
 from gcp_actions.common_utils.timer import run_timer
 from gcp_actions.secret_manager import SecretManagerClient
-from power_core.database.db_conect import connect_to_db
 logger = logging.getLogger(__name__)
+
+
+def _maybe_preflight_db() -> None:
+    """Best-effort Postgres preflight; never raises, skipped when PG disabled."""
+    if os.environ.get("PG_ENABLED", "false").strip().lower() not in (
+        "1", "true", "yes", "enable", "enabled",
+    ):
+        logger.debug("PG disabled — skipping DB preflight in DropboxAuth.")
+        return
+    try:
+        from power_core.database.db_conect import connect_to_db
+        connect_to_db()
+    except Exception as e:
+        logger.warning(f"PG preflight failed (non-fatal): {e}")
 
 
 @lru_cache(maxsize=1)
@@ -21,7 +34,7 @@ class DropboxAuth:
     """Loads Dropbox credentials from Secret Manager and provides the authorized client and signature checks."""
 
     def __init__(self):
-        """Inject the Dropbox/Strava secrets from Secret Manager into the environment and preflight the DB."""
+        """Inject the Dropbox/Strava secrets from Secret Manager into the environment."""
         sm = SecretManagerClient(GCP_PROJECT_ID, s_email_dropbox)
         current_secret_data = sm.get_secret_json(SEC_DROPBOX)
 
@@ -32,7 +45,7 @@ class DropboxAuth:
         self.DROPBOX_APP_KEY = os.environ.get("DROPBOX_APP_KEY")
         self.DROPBOX_APP_SECRET = os.environ.get("DROPBOX_APP_SECRET")
         self.DROPBOX_REFRESH_TOKEN = os.environ.get("DROPBOX_REFRESH_TOKEN")
-        connect_to_db()
+        _maybe_preflight_db()
 
     def auth_dropbox(self):
             """

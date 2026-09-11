@@ -1,13 +1,17 @@
 """
 GPS Data Processor (Memory Stream to PostgreSQL)
 Target: Psycopg 3 (Modern Python)
+
+NOTE: Postgres sink is temporarily DISABLED on dev (PG_ENABLED=false).
+Pure parsing (parse_memory_csv_stream) stays active; only DB load is skipped.
+See documentation/postgres_DISABLED.md.
 """
 import csv
 import io
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Iterator, Optional
-from power_core.database.db_conect import load_stream_to_postgres
 
 logger = logging.getLogger(__name__)
 
@@ -87,14 +91,25 @@ def parse_memory_csv_stream(input_data: str) -> Iterator[tuple[str, float, float
 
 # --- Main Execution ---
 def process_data(raw_java_csv_string: str):
-    """Stream parsed GPS rows from the raw CSV string into PostgreSQL."""
+    """Stream parsed GPS rows from the raw CSV string into PostgreSQL.
+
+    Skipped (returns 0) when PG_ENABLED!=true. Pure parsing stays available
+    via parse_memory_csv_stream().
+    """
+    if os.environ.get("PG_ENABLED", "false").strip().lower() not in (
+        "1", "true", "yes", "enable", "enabled",
+    ):
+        logger.info("PG disabled — process_data() skipped Postgres load.")
+        return 0
+    from power_core.database.db_conect import load_stream_to_postgres
+
     logger.info("Starting Psycopg 3 Pipeline...")
 
     # Create the generator
     data_stream = parse_memory_csv_stream(raw_java_csv_string)
 
     # Pipe generator directly to DB loader
-    load_stream_to_postgres(data_stream)
+    return load_stream_to_postgres(data_stream)
 
 
 if __name__ == "__main__":
