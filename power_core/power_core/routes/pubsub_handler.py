@@ -4,6 +4,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from flask import request
+from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore
 from google.cloud.firestore import SERVER_TIMESTAMP
 from gcp_actions.client import get_any_client
@@ -31,25 +32,31 @@ PIPELINE_CONFIG = {
 
 
 def check_and_mark_processed(idempotency_key: str, collection_name: str, ttl_hours: int = 24) -> bool:
-    """Deduplicate Pub/Sub messages via a Firestore idempotency marker; True means already processed.
+    """Deduplicate Pub/Sub messages via an atomic Firestore claim; True means already processed.
 
-    Fails closed (True) when the DB check errors, so malformed messages don't trigger infinite retry loops.
+    Claims the marker with DocumentReference.create(), which fails with
+    AlreadyExists when the document is present — so two overlapping deliveries
+    cannot both win (the old get()-then-set() let both through).
+    Fails closed (True) when the DB errors, so malformed messages don't trigger
+    infinite retry loops.
     """
+    payload = {
+        'idempotency_key': idempotency_key,
+        'processed_at': SERVER_TIMESTAMP,
+        'expires_at': datetime.now(timezone.utc) + timedelta(hours=ttl_hours),
+    }
     try:
         db = get_any_client("firestore")
         doc_ref = db.collection(collection_name).document(idempotency_key)
-        doc = doc_ref.get()
-
-        if doc.exists:
-            processed_at = doc.to_dict().get('processed_at')
+        try:
+            doc_ref.create(payload)
+        except AlreadyExists:
+            try:
+                processed_at = (doc_ref.get().to_dict() or {}).get('processed_at')
+            except Exception:
+                processed_at = None
             logger.warning(f"Duplicate message: {idempotency_key} (processed at {processed_at})")
             return True
-
-        doc_ref.set({
-            'idempotency_key': idempotency_key,
-            'processed_at': SERVER_TIMESTAMP,
-            'expires_at': datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
-        })
         logger.debug(f"✅ New message detected: {idempotency_key}")
         return False
 

@@ -500,17 +500,23 @@ stage_8_PUBSUB_SETUP() {
         --role="roles/iam.serviceAccountTokenCreator"
 
     # Create the private push subscription with DLQ policy (placeholder URL —
-    # updated to the real Cloud Run URL after first deploy via wire_pubsub.sh)
+    # updated to the real Cloud Run URL after first deploy via wire_pubsub.sh).
+    # Ack deadline must cover the full pipeline (FIT download → decode → clean
+    # → re-encode → Strava), otherwise Pub/Sub redelivers mid-pipeline and hits
+    # the dedup path as duplicates. 600s matches local_dev.sh emulator parity.
+    local ack_deadline="${ACK_DEADLINE_SECONDS:-600}"
     if ! gcloud pubsub subscriptions describe "$private_subscription" &>/dev/null; then
         echo "Creating private push subscription '$private_subscription' with DLQ policy..."
         run_cmd gcloud pubsub subscriptions create "$private_subscription" \
             --topic="$private_topic" \
+            --ack-deadline="$ack_deadline" \
             --dead-letter-topic="$private_dlq_topic" \
             --max-delivery-attempts=5 \
             --push-endpoint="$push_endpoint"
     else
         echo "Subscription $private_subscription already exists. Updating with DLQ policy..."
         run_cmd gcloud pubsub subscriptions update "$private_subscription" \
+            --ack-deadline="$ack_deadline" \
             --dead-letter-topic="$private_dlq_topic" \
             --max-delivery-attempts=5
     fi

@@ -92,9 +92,12 @@ if [[ "${DRY_RUN:-false}" == "true" ]]; then
 fi
 
 # 1. Point the private push subscription at the real Cloud Run URL
+# (and keep the ack deadline wide enough for the full pipeline — see start.sh
+# stage_8; 600s matches the local emulator in local_dev.sh).
 echo "Updating private push subscription '$private_sub'..."
 gcloud pubsub subscriptions update "$private_sub" \
-    --push-endpoint="$private_push_endpoint"
+    --push-endpoint="$private_push_endpoint" \
+    --ack-deadline="${ACK_DEADLINE_SECONDS:-600}"
 
 # 2. Grant the Eventarc SA the ability to invoke the Cloud Run service
 echo "Granting roles/run.invoker to $eventarc_sa_email on $CLOUD_RUN_SERVICE..."
