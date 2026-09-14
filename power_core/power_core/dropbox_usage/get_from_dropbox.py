@@ -2,6 +2,7 @@
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
+from google.cloud import firestore
 from gcp_actions.firestore_box.json_manipulations import FirestoreMagic
 from gcp_actions.common_utils.timer import run_timer
 from gcp_actions.pubsub import publish_to_pubsub
@@ -73,16 +74,19 @@ class DropboxFileMarkers:
 
     def mark_published(self, file_key, upload_id, now,
                        dropbox_path=None, original_filename=None):
-        """Record a successful pointer publish, counting the attempt."""
-        current = self.get(file_key) or {}
-        extra = {"attempts": current.get("attempts", 0) + 1}
+        """Record a successful pointer publish, counting the attempt atomically.
+
+        Server-side Increment + merge write: no read-modify-write, so
+        overlapping sync runs can't lose increments or clobber fields written
+        concurrently (e.g. a terminal state from mark_final).
+        """
+        record = self._record(file_key, "published", upload_id, now)
         if dropbox_path is not None:
-            extra["dropbox_path"] = dropbox_path
+            record["dropbox_path"] = dropbox_path
         if original_filename is not None:
-            extra["original_filename"] = original_filename
-        FirestoreMagic(self.COLLECTION, file_key).set_firejson(
-            self._record(file_key, "published", upload_id, now, extra), False
-        )
+            record["original_filename"] = original_filename
+        record["attempts"] = firestore.Increment(1)
+        FirestoreMagic(self.COLLECTION, file_key).set_firejson(record, True)
 
     def mark_final(self, file_key, status, upload_id=""):
         """Record a terminal pipeline outcome (completed/failed/dead)."""

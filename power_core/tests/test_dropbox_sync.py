@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from dropbox.files import DeletedMetadata, FileMetadata
+from google.cloud.firestore import Increment
 
 from power_core.dropbox_usage import get_from_dropbox as sync
 
@@ -222,6 +223,7 @@ def test_stable_id_falls_back_to_random(publisher):
 def test_marker_writes_use_explicit_merge(monkeypatch):
     """set_firejson must pass explicit merge (None crashes new firestore clients)."""
     calls = []
+    written = []
 
     class FakeMagic:
         """Record FirestoreMagic interactions without network."""
@@ -240,6 +242,7 @@ def test_marker_writes_use_explicit_merge(monkeypatch):
         def set_firejson(self, data, merge=None):
             """Record the write mode and persist the canned record."""
             calls.append(("set", merge))
+            written.append(dict(data))
             FakeMagic.stored[self.doc_id] = dict(data)
 
     monkeypatch.setattr(sync, "FirestoreMagic", FakeMagic)
@@ -247,7 +250,9 @@ def test_marker_writes_use_explicit_merge(monkeypatch):
     store.mark_published("k", "u", _now())
     store.mark_final("k", "completed", "u")
     modes = [entry[1] for entry in calls if entry[0] == "set"]
-    assert modes == [False, True]
+    assert modes == [True, True]
+    # Attempts ride a server-side Increment: no read-modify-write, no lost counts.
+    assert isinstance(written[0]["attempts"], Increment)
 
 
 def _sweep_markers(monkeypatch):
@@ -268,8 +273,20 @@ def _sweep_markers(monkeypatch):
             return dict(SweepMagic.stored.get(self.doc_id, {}))
 
         def set_firejson(self, data, merge=None):
-            """Persist the canned record."""
-            SweepMagic.stored[self.doc_id] = dict(data)
+            """Persist the canned record, resolving server increments like Firestore."""
+            prev = SweepMagic.stored.get(self.doc_id, {})
+            resolved = {}
+            for key, value in data.items():
+                if isinstance(value, Increment):
+                    resolved[key] = prev.get(key, 0) + 1
+                else:
+                    resolved[key] = value
+            if merge:
+                merged = dict(prev)
+                merged.update(resolved)
+                SweepMagic.stored[self.doc_id] = merged
+            else:
+                SweepMagic.stored[self.doc_id] = resolved
 
     monkeypatch.setattr(sync, "FirestoreMagic", SweepMagic)
     return sync.DropboxFileMarkers(), SweepMagic
@@ -285,6 +302,28 @@ def test_marker_attempts_increment(monkeypatch):
     assert saved["attempts"] == 3
     assert saved["dropbox_path"] == "/a.fit"
     assert saved["status"] == "published"
+
+
+def test_mark_published_writes_without_read(monkeypatch):
+    """No read-modify-write: the count must not depend on a prior read."""
+    class NoReadMagic:
+        """Fail the test if the marker path reads before writing."""
+
+        def __init__(self, collection, doc_id, placeholder=None):
+            """Bind to the canned document."""
+            self.doc_id = doc_id
+
+        def load_firejson(self):
+            """Reads are the race; they must not happen."""
+            raise AssertionError("mark_published must not read before writing")
+
+        def set_firejson(self, data, merge=None):
+            """The merge write must carry a server-side increment."""
+            assert merge is True
+            assert isinstance(data["attempts"], Increment)
+
+    monkeypatch.setattr(sync, "FirestoreMagic", NoReadMagic)
+    sync.DropboxFileMarkers().mark_published("k", "u", _now())
 
 
 def test_sweep_republishes_stale_failed(publisher):
