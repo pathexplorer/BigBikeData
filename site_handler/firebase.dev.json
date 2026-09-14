@@ -284,11 +284,27 @@
         }
       },
       {
+        "source": "/static/**",
+        "run": {
+          "serviceId": "site-handler-dev",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/static/404.html"
       }
     ],
     "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
       {
         "source": "/static/**",
         "headers": [

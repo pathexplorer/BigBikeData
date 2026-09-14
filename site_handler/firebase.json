@@ -285,6 +285,13 @@
         }
       },
       {
+        "source": "/static/**",
+        "run": {
+          "serviceId": "front-side-for-friends",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/static/404.html"
       }
