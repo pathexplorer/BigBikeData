@@ -176,7 +176,13 @@ def connect_to_dropbox(dbx=None, cursor_store=None, marker_store=None, topic=Non
         logger.info("No new changes found.")
     else:
         logger.info(f"--- Processing {len(all_entries)} total entries ---")
-    fit_entries = [e for e in all_entries if isinstance(e, FileMetadata) and e.name.endswith(".fit")]
+    fit_entries = [e for e in all_entries if isinstance(e, FileMetadata) and e.name.lower().endswith(".fit")]
+    for e in all_entries:
+        if e not in fit_entries:
+            logger.warning(
+                f"Skipping non-FIT entry: {getattr(e, 'name', '?')} "
+                f"({type(e).__name__}). Private pipeline accepts only '*.fit'."
+            )
     if fit_entries:
         logger.info(f"Found {len(fit_entries)} new/modified .fit files. Publishing pointers to Pub/Sub...")
         for entry in fit_entries:
