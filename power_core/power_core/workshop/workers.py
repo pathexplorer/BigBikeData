@@ -250,12 +250,15 @@ class ActivityProcessingPipeline:
             self.stage_02_fit_to_unexplored_csv()
         with time_stage("3 Clean GPS data", all_stage_times):
             branching = self.stage_03_clean_gps_data()
-        with time_stage("4 CSV to FIT", all_stage_times):
-            self.stage_04_fixed_csv_to_fit()
         if branching > 0:
+            with time_stage("4 CSV to FIT", all_stage_times):
+                self.stage_04_fixed_csv_to_fit()
             with time_stage("4-a Send results in email", all_stage_times):
                 self.stage_04_01_email_cleaned_fit("find")
         else:
+            # Clean file: cleaner_run deliberately writes no fixed CSV
+            # (nothing to fix), so there is nothing to re-encode or upload —
+            # go straight to the info email.
             with time_stage("4-b Send info email", all_stage_times):
                 self.stage_04_01_email_cleaned_fit("not_found")
         log_duration_table(all_stage_times, "Public")
