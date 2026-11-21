@@ -1,0 +1,82 @@
+# --- CONFIGURATION AND LOGGING ---
+# logging
+*.log
+logs/
+old/
+_old/
+
+# --- CONFIGURATION FILES ---
+# *.yaml  # Intentionally removed — we need cloudbuild.yaml, dbt_project.yml, etc. tracked
+
+# --- ENVIRONMENT AND BUILD ARTIFACTS ---
+# Python virtual environments
+.venv/
+.venv1/
+venv/
+*.env
+*.env.dev
+
+# Packages in editable mode (`pip install -e .`)
+*.egg-info/
+
+# Emulator encrypted data (gocryptfs volume — secrets never in plaintext)
+.emulator_data/
+.emulator_data.enc/
+.emulator_data_fs
+
+# Sensitive local paths (webhook URL, etc.)
+.webhook_path
+
+# Internal team notes (URLs, non-secret but not for the public repo)
+INTERNAL_URLS.md
+
+# Encrypted external-services wizard state (gpg) — never plaintext
+.external_services.*.gpg
+
+# Python compiled files
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Testing and Coverage
+.pytest_cache
+.coverage
+htmlcov/
+_local_tests/
+other/
+
+# --- IDE & VERSION CONTROL ---
+# PyCharm specific directories and files
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# VS Code
+.vscode/
+
+
+# Cloud Build artifacts or cache directories
+.gcloud/
+build/
+
+# --- NODE & TAILWIND CSS ---
+**/node_modules/
+
+# --- DBT ARTIFACTS ---
+**/dbt_internal_packages/
+**/target/compiled/
+**/target/generic_tests/
+**/target/snapshots/
+
+# --- TAILWIND OUTPUT ---
+**/output.css
+
+# --- FLASK-BABEL (compiled translation binaries) ---
+*.mo
+
+
+# --- FIREBASE LOCAL CACHE ---
+# Hosting cache and other locally generated Firebase artifacts
+.firebase/
